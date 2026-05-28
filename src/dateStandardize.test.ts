@@ -14,6 +14,7 @@ import {
   AD_WORDS,
   WFT_PATTERN,
 } from './dateConstants';
+import { stdDate } from './dateStandardize';
 
 describe('normalizeAccents', () => {
   test('strips diacritics from French month names', () => {
@@ -390,5 +391,179 @@ describe('WFT_PATTERN', () => {
     expect(WFT_PATTERN.test('WFT')).toBe(true);
     expect(WFT_PATTERN.test('wft')).toBe(true);
     expect(WFT_PATTERN.test('Wft')).toBe(true);
+  });
+});
+
+describe('stdDate', () => {
+  describe('basic dates', () => {
+    test('day month year', () => { expect(stdDate('28 SEP 1974')).toBe('28 Sep 1974'); });
+    test('month day, year', () => { expect(stdDate('Feb 3, 1904')).toBe('3 Feb 1904'); });
+    test('month year', () => { expect(stdDate('Sep 1923')).toBe('Sep 1923'); });
+    test('year month', () => { expect(stdDate('1923 Feb')).toBe('Feb 1923'); });
+    test('year only', () => { expect(stdDate('1875')).toBe('1875'); });
+    test('full month name', () => { expect(stdDate('23 October 1856')).toBe('23 Oct 1856'); });
+    test('APR 10 1580', () => { expect(stdDate('APR 10 1580')).toBe('10 Apr 1580'); });
+    test('ordinals', () => {
+      expect(stdDate('Jan 1st, 1901')).toBe('1 Jan 1901');
+      expect(stdDate('February 2nd, 1902')).toBe('2 Feb 1902');
+      expect(stdDate('3rd March 1903')).toBe('3 Mar 1903');
+    });
+  });
+
+  describe('non-English months', () => {
+    test('French', () => { expect(stdDate('15 février 1850')).toBe('15 Feb 1850'); });
+    test('German', () => { expect(stdDate('15 März 1850')).toBe('15 Mar 1850'); });
+    test('Polish', () => { expect(stdDate('15 styczen 1900')).toBe('15 Jan 1900'); });
+    test('Russian', () => { expect(stdDate('15 yanvar 1900')).toBe('15 Jan 1900'); });
+    test('Italian', () => { expect(stdDate('15 gennaio 1900')).toBe('15 Jan 1900'); });
+  });
+
+  describe('modifiers', () => {
+    test('Abt', () => {
+      expect(stdDate('ABT 28 SEP 1974')).toBe('Abt 28 Sep 1974');
+      expect(stdDate('about 1850')).toBe('Abt 1850');
+      expect(stdDate('approx Feb 1854')).toBe('Abt Feb 1854');
+      expect(stdDate('omk 1900')).toBe('Abt 1900');
+    });
+    test('Abt from circa', () => {
+      expect(stdDate('c1978')).toBe('Abt 1978');
+      expect(stdDate('ca1978')).toBe('Abt 1978');
+      expect(stdDate('circa 1900')).toBe('Abt 1900');
+    });
+    test('Est', () => {
+      expect(stdDate('say 1750')).toBe('Est 1750');
+      expect(stdDate('ansl 1525')).toBe('Est 1525');
+    });
+    test('Cal', () => { expect(stdDate('CAL 15 Jan 1900')).toBe('Cal 15 Jan 1900'); });
+    test('Bef', () => {
+      expect(stdDate('BEF OCT 1855')).toBe('Bef Oct 1855');
+      expect(stdDate('TO 1834')).toBe('Bef 1834');
+    });
+    test('Aft', () => {
+      expect(stdDate('Aft Oct 1855')).toBe('Aft Oct 1855');
+      expect(stdDate('FROM 1850')).toBe('Aft 1850');
+    });
+    test('symbols', () => {
+      expect(stdDate('<1850')).toBe('Bef 1850');
+      expect(stdDate('>1850')).toBe('Aft 1850');
+    });
+    test('double modifiers collapse', () => {
+      expect(stdDate('BEF ABT 1580')).toBe('Bef 1580');
+    });
+    test('Int → Est with parenthetical', () => {
+      expect(stdDate('Int 29 Sep 1874 (second-last day of month)')).toBe('Est 29 Sep 1874 (second-last day of month)');
+    });
+  });
+
+  describe('special cases', () => {
+    test('unknown', () => {
+      expect(stdDate('UNKNOWN')).toBe('');
+      expect(stdDate('date unknown')).toBe('');
+      expect(stdDate('')).toBe('');
+    });
+    test('special phrases', () => {
+      expect(stdDate('in infancy')).toBe('(in infancy)');
+      expect(stdDate('INFANT')).toBe('(in infancy)');
+      expect(stdDate('died young')).toBe('(young)');
+    });
+    test('parenthetical', () => {
+      expect(stdDate('BET 28 SEP 1974 AND 5 OCT 1978 (SOME TEXT)')).toBe('Bet 28 Sep 1974 and 5 Oct 1978 (SOME TEXT)');
+      expect(stdDate('(at age 16)')).toBe('(at age 16)');
+    });
+    test('question mark', () => {
+      expect(stdDate('aft 1823?')).toBe('Aft 1823 (?)');
+    });
+    test('BC', () => {
+      expect(stdDate('15 Mar 44 BC')).toBe('15 Mar 44 BC');
+    });
+    test('AD discarded', () => {
+      expect(stdDate('AD 1066')).toBe('1066');
+    });
+    test('WFT rejected', () => { expect(stdDate('WFT Est 1147-1174')).toBe(''); });
+    test('YYYYMMDD', () => { expect(stdDate('19000914')).toBe('14 Sep 1900'); });
+  });
+
+  describe('ranges', () => {
+    test('Bet/and', () => {
+      expect(stdDate('BET 28 SEP 1974 AND 5 OCT 1978')).toBe('Bet 28 Sep 1974 and 5 Oct 1978');
+      expect(stdDate('BET 1823 AND 17 OCT 1836')).toBe('Bet 1823 and 17 Oct 1836');
+      expect(stdDate('BTW 5 Feb 1789 & Mar 1790')).toBe('Bet 5 Feb 1789 and Mar 1790');
+    });
+    test('From/to → Bet/and', () => {
+      expect(stdDate('FROM 1865 - 1900')).toBe('Bet 1865 and 1900');
+    });
+    test('standalone From → Aft', () => {
+      expect(stdDate('FROM 1850')).toBe('Aft 1850');
+    });
+    test('dash ranges', () => {
+      expect(stdDate('1875-1900')).toBe('Bet 1875 and 1900');
+      expect(stdDate('Apr 1756-May 1757')).toBe('Bet Apr 1756 and May 1757');
+    });
+    test('abbreviated year ranges', () => {
+      expect(stdDate('1875-80')).toBe('Bet 1875 and 1880');
+      expect(stdDate('1920-21')).toBe('Bet 1920 and 1921');
+    });
+    test('partial ranges fill gaps', () => {
+      expect(stdDate('BET 10 OCT AND 15 NOV 1823')).toBe('Bet 10 Oct 1823 and 15 Nov 1823');
+      expect(stdDate('BET 10 AND 15 OCT 1943')).toBe('Bet 10 Oct 1943 and 15 Oct 1943');
+      expect(stdDate('BET OCT AND NOV 1855')).toBe('Bet Oct 1855 and Nov 1855');
+    });
+  });
+
+  describe('format conversions', () => {
+    test('yyyy-mm-dd', () => { expect(stdDate('1900/09/14')).toBe('14 Sep 1900'); });
+    test('mm-dd-yyyy unambiguous', () => {
+      expect(stdDate('03/25/1967')).toBe('25 Mar 1967');
+      expect(stdDate('14-09-1900')).toBe('14 Sep 1900');
+    });
+    test('ambiguous → or', () => {
+      expect(stdDate('3/9/1978')).toBe('9 Mar 1978 or 3 Sep 1978');
+    });
+    test('yyyy-mm-dd in ranges', () => {
+      expect(stdDate('From 1900/09/14 to 1902/03/08')).toBe('Bet 14 Sep 1900 and 8 Mar 1902');
+    });
+  });
+
+  describe('double-dating (split years)', () => {
+    test('basic', () => {
+      expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');
+      expect(stdDate('28 Feb 1623/4')).toBe('28 Feb 1623/24');
+      expect(stdDate('Feb 1623/24')).toBe('Feb 1623/24');
+      expect(stdDate('1623/4')).toBe('1623/24');
+    });
+    test('century rollover', () => {
+      expect(stdDate('5 Feb 1699/1700')).toBe('5 Feb 1699/00');
+      expect(stdDate('5 Feb 1699/00')).toBe('5 Feb 1699/00');
+      expect(stdDate('5 feb 1700/1')).toBe('5 Feb 1700/01');
+      expect(stdDate('5 Feb 1689/90')).toBe('5 Feb 1689/90');
+    });
+    test('with modifiers', () => {
+      expect(stdDate('Aft 28 Feb 1623/24')).toBe('Aft 28 Feb 1623/24');
+      expect(stdDate('Bef 28 Feb 1623/24')).toBe('Bef 28 Feb 1623/24');
+    });
+    test('in ranges', () => {
+      expect(stdDate('Bet 1 Jan 1632/33 and 5 Feb 1635/36')).toBe('Bet 1 Jan 1632/33 and 5 Feb 1635/36');
+    });
+    test('invalid after 1752', () => {
+      const result = stdDate('1756/57');
+      expect(result).not.toContain('/');
+    });
+  });
+
+  describe('quarters', () => {
+    test('Q notation', () => {
+      expect(stdDate('Q1 1850')).toBe('Q1 1850');
+      expect(stdDate('Q2 1850')).toBe('Q2 1850');
+    });
+    test('quarter keywords', () => {
+      expect(stdDate('1st quarter 1850')).toBe('Q1 1850');
+      expect(stdDate('2nd qtr 1850')).toBe('Q2 1850');
+    });
+  });
+
+  describe('standalone modifiers return empty', () => {
+    test('from alone', () => { expect(stdDate('from')).toBe(''); });
+    test('bet alone', () => { expect(stdDate('bet')).toBe(''); });
+    test('bef alone', () => { expect(stdDate('bef')).toBe(''); });
   });
 });
