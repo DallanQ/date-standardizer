@@ -85,11 +85,8 @@ function parseSingle(s: string): ParsedDate | null {
   const splitMatch = s.match(/(\d+)\/(\d{1,2})$/);
   if (splitMatch) {
     const baseYear = parseInt(splitMatch[1]);
-    const suffix = splitMatch[2];
-    // Effective year: replace last digits of base year with suffix
-    const baseStr = String(baseYear);
-    const effectiveYearStr = baseStr.slice(0, baseStr.length - suffix.length) + suffix;
-    year = parseInt(effectiveYearStr);
+    // Effective year for a split year is always baseYear + 1
+    year = baseYear + 1;
     // Remove the split year part and parse rest
     s = s.replace(/\d+\/\d{1,2}$/, '').trim();
   }

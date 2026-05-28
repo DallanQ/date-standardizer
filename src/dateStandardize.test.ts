@@ -666,3 +666,89 @@ describe('data quality integration', () => {
     expect(min!).toBeGreaterThan(110 * 365);
   });
 });
+
+describe('integration — stdDate → helpers pipeline', () => {
+  const cases: Array<{
+    raw: string;
+    std: string;
+    earliest: number | null;
+    latest: number | null;
+  }> = [
+    { raw: '28 SEP 1974', std: '28 Sep 1974', earliest: 1974, latest: 1974 },
+    { raw: 'Feb 3, 1904', std: '3 Feb 1904', earliest: 1904, latest: 1904 },
+    { raw: 'ABT 28 SEP 1974', std: 'Abt 28 Sep 1974', earliest: 1973, latest: 1975 },
+    { raw: '1923 Feb', std: 'Feb 1923', earliest: 1923, latest: 1923 },
+    { raw: '1875', std: '1875', earliest: 1875, latest: 1875 },
+    { raw: 'FROM 1850', std: 'Aft 1850', earliest: 1850, latest: 1860 },
+    { raw: 'TO 1834', std: 'Bef 1834', earliest: 1824, latest: 1834 },
+    { raw: 'FROM 1865 - 1900', std: 'Bet 1865 and 1900', earliest: 1865, latest: 1900 },
+    { raw: 'BET 28 SEP 1974 AND 5 OCT 1978', std: 'Bet 28 Sep 1974 and 5 Oct 1978', earliest: 1974, latest: 1978 },
+    { raw: '28 Feb 1623/24', std: '28 Feb 1623/24', earliest: 1624, latest: 1624 },
+    { raw: '1623/4', std: '1623/24', earliest: 1624, latest: 1624 },
+    { raw: '5 Feb 1699/1700', std: '5 Feb 1699/00', earliest: 1700, latest: 1700 },
+    { raw: '15 Mar 44 BC', std: '15 Mar 44 BC', earliest: -44, latest: -44 },
+    { raw: 'c1978', std: 'Abt 1978', earliest: 1977, latest: 1979 },
+    { raw: '03/25/1967', std: '25 Mar 1967', earliest: 1967, latest: 1967 },
+    { raw: '1875-1900', std: 'Bet 1875 and 1900', earliest: 1875, latest: 1900 },
+    { raw: 'BET 10 AND 15 OCT 1943', std: 'Bet 10 Oct 1943 and 15 Oct 1943', earliest: 1943, latest: 1943 },
+    { raw: 'UNKNOWN', std: '', earliest: null, latest: null },
+    { raw: 'INFANT', std: '(in infancy)', earliest: null, latest: null },
+    { raw: 'Q1 1850', std: 'Q1 1850', earliest: 1850, latest: 1850 },
+    { raw: '3/9/1978', std: '9 Mar 1978 or 3 Sep 1978', earliest: 1978, latest: 1978 },
+    { raw: '1875-80', std: 'Bet 1875 and 1880', earliest: 1875, latest: 1880 },
+    { raw: 'Int 29 Sep 1874 (second-last day of month)', std: 'Est 29 Sep 1874 (second-last day of month)', earliest: 1864, latest: 1884 },
+  ];
+
+  test.each(cases)('$raw → $std', ({ raw, std, earliest, latest }) => {
+    const result = stdDate(raw);
+    expect(result).toBe(std);
+    expect(earliestYear(result)).toBe(earliest);
+    expect(latestYear(result)).toBe(latest);
+  });
+});
+
+describe('edge cases — error handling', () => {
+  test('standalone modifiers return empty', () => {
+    expect(stdDate('from')).toBe('');
+    expect(stdDate('bet')).toBe('');
+    expect(stdDate('bef')).toBe('');
+    expect(stdDate('aft')).toBe('');
+    expect(stdDate('abt')).toBe('');
+    expect(stdDate('est')).toBe('');
+  });
+
+  test('garbage input returns empty', () => {
+    expect(stdDate('not a date at all')).toBe('');
+  });
+
+  test('empty and whitespace', () => {
+    expect(stdDate('')).toBe('');
+    expect(stdDate('   ')).toBe('');
+  });
+
+  test('unknown variants', () => {
+    expect(stdDate('date unknown')).toBe('');
+    expect(stdDate('inconnue')).toBe('');
+    expect(stdDate('onbekend')).toBe('');
+    expect(stdDate('unbekannt')).toBe('');
+  });
+
+  test('special phrases with trailing parenthetical', () => {
+    expect(stdDate('in infancy (and some text)')).toBe('(in infancy) (and some text)');
+    expect(stdDate('INFANT (and more text)')).toBe('(in infancy) (and more text)');
+    expect(stdDate('died young (I think)')).toBe('(young) (I think)');
+  });
+
+  test('parenthetical only', () => {
+    expect(stdDate('(at age 16)')).toBe('(at age 16)');
+  });
+
+  test('helpers handle ? in standardized string', () => {
+    expect(earliestYear('Abt 1850 (?)')).toBe(1849);
+    expect(latestYear('Abt 1850 (?)')).toBe(1851);
+  });
+
+  test('helpers handle parenthetical text after range', () => {
+    expect(latestYear('Bet 28 Sep 1974 and 5 Oct 1978 (SOME TEXT)')).toBe(1978);
+  });
+});
