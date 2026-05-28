@@ -3,7 +3,7 @@
  * These functions parse only the output of stdDate(), not raw date strings.
  */
 
-import { MONTH_NUM, MONTH_DAY_OFFSETS as RAW_MONTH_DAY_OFFSETS, DAYS_IN_MONTH as RAW_DAYS_IN_MONTH } from './dateConstants';
+import { MONTH_NUM, DAYS_IN_MONTH as RAW_DAYS_IN_MONTH } from './dateConstants';
 
 // Adjusted for a true 365-day year (Feb = 28, not 29)
 const DAYS_IN_MONTH = [...RAW_DAYS_IN_MONTH];

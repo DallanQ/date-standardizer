@@ -31,6 +31,7 @@ interface DateParts {
   splitYear?: string;   // e.g. "24", "00"
   bc?: boolean;
   uncertain?: boolean;
+  quarter?: number;     // 1-4 for quarter dates
 }
 
 // ---------- Tokenizer ----------
@@ -298,7 +299,7 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
               // Store quarter in a special way — we'll use day field as quarter marker
               pendingNums.push(num);
               // Mark this as quarter
-              (parts as any)._quarter = num;
+              parts.quarter = num;
               i += 3; // skip num, ordinal, quarter word
               continue;
             }
@@ -310,7 +311,7 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
       if (i + 1 < endIdx && tokens[i + 1].type === 'str') {
         const nextLower = tokens[i + 1].value.toLowerCase();
         if (QUARTER_WORDS.has(nextLower) && num >= 1 && num <= 4) {
-          (parts as any)._quarter = num;
+          parts.quarter = num;
           i += 2;
           continue;
         }
@@ -337,13 +338,6 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
             const suffixLen = suffixTok.value.length;
 
             if (suffixLen <= 2) {
-              // Normalize to 2-digit suffix
-              const expectedSuffix = nextYear % 100;
-              const actualSuffix = suffixLen === 1 ? suffixVal : suffixVal;
-              const normalizedSuffix = suffixLen === 1
-                ? String(nextYear % 100).padStart(2, '0')
-                : suffixTok.value.padStart(2, '0');
-
               // Verify suffix matches nextYear
               if (suffixLen === 1) {
                 if ((nextYear % 10) === suffixVal) {
@@ -421,7 +415,7 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
       } else if (num >= 1 && num <= 31 && !parts.day) {
         // Store as potential day even without month (for range gap filling)
         parts.day = num;
-      } else if ((parts as any)._quarter && num >= 1000 && num <= 2200) {
+      } else if (parts.quarter && num >= 1000 && num <= 2200) {
         parts.year = num;
       }
     }
@@ -489,7 +483,6 @@ export function stdDate(raw: string): string {
   if (text.includes('__OR__')) {
     const orParts = text.match(/__OR__(.*?)__OR__(.*?)__OR__/);
     if (orParts) {
-      const before = text.substring(0, text.indexOf('__OR__')).trim();
       const interp1 = orParts[1].trim();
       const interp2 = orParts[2].trim();
 
@@ -522,9 +515,6 @@ export function stdDate(raw: string): string {
       }
     }
   }
-
-  // Detect range type
-  const firstModifier = getLeadingModifier(allTokens);
 
   // Check for From/To pattern
   const fromPositions = findAllModifier(allTokens, 'From');
@@ -601,8 +591,8 @@ export function stdDate(raw: string): string {
   const date = parseDateTokens(allTokens, 0, allTokens.length);
 
   // Check for quarter
-  if ((date as any)._quarter) {
-    const q = (date as any)._quarter;
+  if (date.quarter) {
+    const q = date.quarter;
     if (date.year) {
       let result = `Q${q} ${date.year}`;
       if (trailingParen) result += ' ' + trailingParen;
@@ -633,15 +623,6 @@ export function stdDate(raw: string): string {
   return result;
 }
 
-// ---------- Helper: get leading modifier ----------
-function getLeadingModifier(tokens: Token[]): string | undefined {
-  if (tokens.length > 0 && tokens[0].type === 'str') {
-    const lower = tokens[0].value.toLowerCase();
-    const mod = MODIFIERS.get(lower);
-    if (mod && mod !== 'and' && mod !== 'or') return mod;
-  }
-  return undefined;
-}
 
 // ---------- Range gap filling ----------
 function fillRangeGaps(date1: DateParts, date2: DateParts): void {
