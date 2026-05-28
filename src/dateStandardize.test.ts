@@ -15,6 +15,7 @@ import {
   WFT_PATTERN,
 } from './dateConstants';
 import { stdDate } from './dateStandardize';
+import { earliestYear, latestYear, minDaysDiff, maxDaysDiff } from './dateHelpers';
 
 describe('normalizeAccents', () => {
   test('strips diacritics from French month names', () => {
@@ -565,5 +566,103 @@ describe('stdDate', () => {
     test('from alone', () => { expect(stdDate('from')).toBe(''); });
     test('bet alone', () => { expect(stdDate('bet')).toBe(''); });
     test('bef alone', () => { expect(stdDate('bef')).toBe(''); });
+  });
+});
+
+describe('earliestYear', () => {
+  test('simple date', () => { expect(earliestYear('28 Sep 1974')).toBe(1974); });
+  test('year only', () => { expect(earliestYear('1875')).toBe(1875); });
+  test('Bef fudge', () => { expect(earliestYear('Bef 1850')).toBe(1840); });
+  test('Aft no fudge on earliest', () => { expect(earliestYear('Aft 1850')).toBe(1850); });
+  test('Abt fudge', () => { expect(earliestYear('Abt 1850')).toBe(1849); });
+  test('Est fudge', () => { expect(earliestYear('Est 1850')).toBe(1840); });
+  test('range uses start', () => { expect(earliestYear('Bet 28 Sep 1974 and 5 Oct 1978')).toBe(1974); });
+  test('or uses min', () => { expect(earliestYear('9 Mar 1978 or 3 Sep 1978')).toBe(1978); });
+  test('split year effective', () => { expect(earliestYear('28 Feb 1623/24')).toBe(1624); });
+  test('quarter', () => { expect(earliestYear('Q1 1850')).toBe(1850); });
+  test('BC', () => { expect(earliestYear('15 Mar 44 BC')).toBe(-44); });
+  test('empty', () => { expect(earliestYear('')).toBeNull(); });
+  test('text only', () => { expect(earliestYear('(in infancy)')).toBeNull(); });
+  test('with parenthetical', () => { expect(earliestYear('7 Sep 1925 (?)')).toBe(1925); });
+  test('with trailing text', () => { expect(earliestYear('Bet 28 Sep 1974 and 5 Oct 1978 (SOME TEXT)')).toBe(1974); });
+});
+
+describe('latestYear', () => {
+  test('simple date', () => { expect(latestYear('28 Sep 1974')).toBe(1974); });
+  test('Aft fudge', () => { expect(latestYear('Aft 1850')).toBe(1860); });
+  test('Bef no fudge on latest', () => { expect(latestYear('Bef 1850')).toBe(1850); });
+  test('Abt fudge', () => { expect(latestYear('Abt 1850')).toBe(1851); });
+  test('Est fudge', () => { expect(latestYear('Est 1850')).toBe(1860); });
+  test('range uses end', () => { expect(latestYear('Bet 28 Sep 1974 and 5 Oct 1978')).toBe(1978); });
+  test('or uses max', () => { expect(latestYear('9 Mar 1978 or 3 Sep 1978')).toBe(1978); });
+  test('split year', () => { expect(latestYear('28 Feb 1623/24')).toBe(1624); });
+  test('quarter', () => { expect(latestYear('Q4 1850')).toBe(1850); });
+  test('empty', () => { expect(latestYear('')).toBeNull(); });
+});
+
+describe('minDaysDiff', () => {
+  test('exact dates', () => {
+    const diff = minDaysDiff('28 Sep 1974', '5 Oct 1978');
+    expect(diff).toBe(maxDaysDiff('28 Sep 1974', '5 Oct 1978'));
+    // 4 years + 7 days ≈ 1468
+    expect(diff).toBeGreaterThan(1460);
+    expect(diff).toBeLessThan(1475);
+  });
+  test('year-only min uses closest edges', () => {
+    const min = minDaysDiff('1850', '1860');
+    // min = Dec 31, 1850 → Jan 1, 1860 ≈ 9 years
+    expect(min!).toBeGreaterThan(365 * 9 - 2);
+    expect(min!).toBeLessThan(365 * 10);
+  });
+  test('year-only max uses farthest edges', () => {
+    const max = maxDaysDiff('1850', '1860');
+    // max = Jan 1, 1850 → Dec 31, 1860 ≈ 11 years
+    expect(max!).toBeGreaterThan(365 * 10);
+    expect(max!).toBeLessThan(365 * 11 + 2);
+  });
+  test('Abt widens range', () => {
+    const min = minDaysDiff('Abt 1850', 'Abt 1860');
+    const max = maxDaysDiff('Abt 1850', 'Abt 1860');
+    expect(min!).toBeLessThan(max!);
+  });
+  test('range date', () => {
+    const min = minDaysDiff('Bet 1850 and 1860', '1900');
+    const max = maxDaysDiff('Bet 1850 and 1860', '1900');
+    expect(min!).toBeLessThan(max!);
+    expect(min!).toBeGreaterThan(365 * 39);
+  });
+  test('or date uses minimizing interpretation', () => {
+    const min = minDaysDiff('9 Mar 1978 or 3 Sep 1978', '1 Jan 1979');
+    expect(min!).toBeLessThan(365);
+    expect(min!).toBeGreaterThan(100);
+  });
+  test('quarter', () => {
+    const min = minDaysDiff('Q1 1850', '1 Jul 1850');
+    expect(min!).toBeGreaterThan(90);
+    expect(min!).toBeLessThan(95);
+  });
+  test('split year uses effective year', () => {
+    const diff = minDaysDiff('28 Feb 1623/24', '1 Mar 1624');
+    expect(diff).toBe(1);
+  });
+  test('empty returns null', () => {
+    expect(minDaysDiff('', '1850')).toBeNull();
+    expect(minDaysDiff('1850', '')).toBeNull();
+    expect(minDaysDiff('(in infancy)', '1850')).toBeNull();
+  });
+});
+
+describe('data quality integration', () => {
+  test('person living > 110 years detectable', () => {
+    const min = minDaysDiff('1850', '1975');
+    expect(min!).toBeGreaterThan(110 * 365);
+  });
+  test('births < 6 months apart detectable', () => {
+    const max = maxDaysDiff('15 Jan 1850', '15 Apr 1850');
+    expect(max!).toBeLessThan(6 * 30);
+  });
+  test('approximate dates still catch issues', () => {
+    const min = minDaysDiff('Abt 1750', 'Abt 1900');
+    expect(min!).toBeGreaterThan(110 * 365);
   });
 });
