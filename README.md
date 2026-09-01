@@ -71,4 +71,4 @@ npm run typecheck # tsc --noEmit
 
 ## License
 
-ISC
+[MIT](LICENSE)
