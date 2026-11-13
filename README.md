@@ -24,6 +24,14 @@ BC/BCE, and more.
   the Julian/Gregorian transition (`28 Feb 1623/24`), BC/BCE, ambiguous numeric
   dates (`3/9/1978` → `9 Mar 1978 or 3 Sep 1978`), and `YYYYMMDD` (`19000914` →
   `14 Sep 1900`)
+- **The source's own order** — an optional `'mdy'` or `'dmy'` picks one reading of an
+  all-number date that reads two ways (`stdDate('3/9/1978', 'mdy')` → `9 Mar 1978`), only
+  where nothing else is printed beside it or only a qualifier, which it keeps
+  (`abt 3/9/1978` → `Abt 9 Mar 1978`); anything else keeps both readings. It never
+  overrides a date that reads one way. A typewriter space is
+  closed first (`7- 8-1971` reads as `7-8-1971`), and a blank for the day or month
+  (`9/ /1979`, `/07/1879`) gives the month only where the order puts it there,
+  otherwise the year alone
 - **Special phrases** — `(in infancy)`, `(young)`, `(stillborn)`
 
 ## Usage
@@ -40,6 +48,8 @@ import {
 stdDate('February 3, 1904');   // "3 Feb 1904"
 stdDate('circa 1850');         // "Abt 1850"
 stdDate('from 1875 to 1880');  // "Bet 1875 and 1880"
+stdDate('3/9/1978');           // "9 Mar 1978 or 3 Sep 1978"
+stdDate('3/9/1978', 'dmy');    // "3 Sep 1978"
 
 // Helpers operate on standardized output, not raw strings.
 // Modifiers apply fudge factors (Abt ±1yr, Est ±10yrs, Bef/Aft ±10yrs).
@@ -53,7 +63,7 @@ maxDaysDiff('1 Jan 1850', '5 Jan 1850'); // 4
 
 | Function | Description |
 | --- | --- |
-| `stdDate(raw: string): string` | Standardize a free-form date string. |
+| `stdDate(raw: string, order?: 'dmy' \| 'mdy'): string` | Standardize a free-form date string; `order` is the source's order for all-number dates. |
 | `earliestYear(std: string): number \| null` | Earliest plausible year for a standardized date. |
 | `latestYear(std: string): number \| null` | Latest plausible year for a standardized date. |
 | `minDaysDiff(std1, std2): number \| null` | Minimum days between two standardized dates. |

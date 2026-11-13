@@ -14,7 +14,7 @@ import {
   AD_WORDS,
   WFT_PATTERN,
 } from './dateConstants';
-import { stdDate } from './dateStandardize';
+import { stdDate, type DateOrder } from './dateStandardize';
 import { earliestYear, latestYear, minDaysDiff, maxDaysDiff } from './dateHelpers';
 
 describe('normalizeAccents', () => {
@@ -566,6 +566,107 @@ describe('stdDate', () => {
     test('from alone', () => { expect(stdDate('from')).toBe(''); });
     test('bet alone', () => { expect(stdDate('bet')).toBe(''); });
     test('bef alone', () => { expect(stdDate('bef')).toBe(''); });
+  });
+
+  describe('a typewriter space in an all-number date', () => {
+    test('reads as the same date without the space', () => {
+      expect(stdDate('7- 8-1971')).toBe(stdDate('7-8-1971'));
+      expect(stdDate('7- 8-1971')).toBe('8 Jul 1971 or 7 Aug 1971');
+      expect(stdDate('12- 4-1868')).toBe('4 Dec 1868 or 12 Apr 1868');
+      expect(stdDate('3- 23-1865')).toBe('23 Mar 1865');
+    });
+    test('leaves a range of years alone', () => {
+      expect(stdDate('1865 - 1900')).toBe('Bet 1865 and 1900');
+      expect(stdDate('FROM 1865 - 1900')).toBe('Bet 1865 and 1900');
+    });
+    test('is not closed after a named month, where the numbers are not an all-number date', () => {
+      expect(stdDate('Nov 9- 9-1722')).not.toBe('9 Sep 1722');
+      expect(stdDate('Nov 9- 9-1722')).toContain('9 Nov 1722');
+    });
+  });
+
+  describe("the book's order for an all-number date that reads two ways", () => {
+    test('mdy and dmy each pick one reading', () => {
+      expect(stdDate('2-10-1937', 'mdy')).toBe('10 Feb 1937');
+      expect(stdDate('2-10-1937', 'dmy')).toBe('2 Oct 1937');
+      expect(stdDate('3/9/1978', 'mdy')).toBe('9 Mar 1978');
+      expect(stdDate('3/9/1978', 'dmy')).toBe('3 Sep 1978');
+      expect(stdDate('12- 4-1868', 'mdy')).toBe('4 Dec 1868');
+    });
+    test('with no order, both readings, as before', () => {
+      expect(stdDate('2-10-1937')).toBe('10 Feb 1937 or 2 Oct 1937');
+      expect(stdDate('2-10-1937', undefined)).toBe('10 Feb 1937 or 2 Oct 1937');
+    });
+    test('keeps the trailing parenthetical and the question mark', () => {
+      expect(stdDate('3/9/1978 (bapt)', 'mdy')).toBe('9 Mar 1978 (bapt)');
+      expect(stdDate('3/9/1978?', 'dmy')).toBe('3 Sep 1978 (?)');
+    });
+    test('never overrides a date that reads only one way', () => {
+      expect(stdDate('3-23-1865', 'dmy')).toBe('23 Mar 1865');
+      expect(stdDate('13-2-1700', 'mdy')).toBe('13 Feb 1700');
+      expect(stdDate('03/25/1967', 'dmy')).toBe('25 Mar 1967');
+      expect(stdDate('5-5-1900', 'dmy')).toBe('5 May 1900');
+      expect(stdDate('Feb 3, 1904', 'dmy')).toBe('3 Feb 1904');
+    });
+    test('never takes a printed "or" for the two readings', () => {
+      for (const order of ['mdy', 'dmy'] as const) {
+        expect(stdDate('25 or 29 Jan. 1856', order)).toBe(stdDate('25 or 29 Jan. 1856'));
+        expect(stdDate('1-9-1816 or 1819', order)).toBe(stdDate('1-9-1816 or 1819'));
+        expect(stdDate('3/9/1978 or 3/10/1978', order)).toBe(stdDate('3/9/1978 or 3/10/1978'));
+      }
+    });
+    test('keeps a qualifier printed beside the date', () => {
+      expect(stdDate('abt 7-8-1971', 'dmy')).toBe('Abt 7 Aug 1971');
+      expect(stdDate('after 9-4-1843', 'mdy')).toBe('Aft 4 Sep 1843');
+      expect(stdDate('CA 1/12-1910', 'mdy')).toBe('Abt 12 Jan 1910');
+      expect(stdDate('bef. 3/9/1978?', 'dmy')).toBe('Bef 3 Sep 1978 (?)');
+    });
+    test('keeps both readings when anything else is printed beside the date', () => {
+      for (const order of ['mdy', 'dmy'] as const) {
+        for (const raw of ['3-4-1900 to 5-6-1901', 'Bet 3/9/1978 and 5/9/1979', '4-12-1787 1776',
+          'will 2-1-1829', 'abt- 3-9-1978', '3-9-1978-', '3/9/1978 4/9/1978']) {
+          expect(stdDate(raw, order)).toBe(stdDate(raw));
+        }
+      }
+    });
+    test('an "or" inside the trailing parenthetical is kept there, as printed', () => {
+      expect(stdDate('11-3-1862(or 11-5-1863)', 'mdy')).toBe('3 Nov 1862 (or 11-5-1863)');
+    });
+    test('rejects an order it does not know', () => {
+      expect(() => stdDate('3/9/1978', 'ymd' as unknown as DateOrder)).toThrow();
+    });
+  });
+
+  describe('a blank where the day or the month should be', () => {
+    test("the number beside the blank is the month only where the book's order puts the month", () => {
+      expect(stdDate('9/ /1979', 'mdy')).toBe('Sep 1979');
+      expect(stdDate('9/ /1979', 'dmy')).toBe('1979');
+      expect(stdDate('11- -1981', 'mdy')).toBe('Nov 1981');
+      expect(stdDate('11- -1981', 'dmy')).toBe('1981');
+      expect(stdDate('02/__/1932', 'mdy')).toBe('Feb 1932');
+      expect(stdDate('02/__/1932', 'dmy')).toBe('1932');
+      expect(stdDate('/07/1879', 'dmy')).toBe('Jul 1879');
+      expect(stdDate('/07/1879', 'mdy')).toBe('1879');
+      expect(stdDate('10--1740', 'mdy')).toBe('Oct 1740');
+    });
+    test('with no order only the year is sure', () => {
+      expect(stdDate('9/ /1979')).toBe('1979');
+      expect(stdDate('11- -1981')).toBe('1981');
+      expect(stdDate('02/__/1932')).toBe('1932');
+      expect(stdDate('/07/1879')).toBe('1879');
+    });
+    test('a number over 12 is a day in either order', () => {
+      expect(stdDate('25- -1900', 'mdy')).toBe('1900');
+      expect(stdDate('- 20-1875', 'dmy')).toBe('1875');
+    });
+    test('keeps a qualifier in front', () => {
+      expect(stdDate('ca 10- -1798')).toBe('Abt 1798');
+      expect(stdDate('ca 10- -1798', 'mdy')).toBe('Abt Oct 1798');
+    });
+    test('is not read after a named month, where the number is the day', () => {
+      expect(stdDate('Sept. 7--1800', 'mdy')).toContain('7 Sep 1800');
+      expect(stdDate('Jan 11--1839', 'dmy')).toContain('11 Jan 1839');
+    });
   });
 });
 
