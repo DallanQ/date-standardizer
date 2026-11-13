@@ -25,8 +25,10 @@ BC/BCE, and more.
   dates (`3/9/1978` → `9 Mar 1978 or 3 Sep 1978`), and `YYYYMMDD` (`19000914` →
   `14 Sep 1900`)
 - **The source's own order** — an optional `'mdy'` or `'dmy'` picks one reading of an
-  all-number date that reads two ways (`stdDate('3/9/1978', 'mdy')` → `9 Mar 1978`). It
-  never overrides a date that reads one way, nor a printed "or". A typewriter space is
+  all-number date that reads two ways (`stdDate('3/9/1978', 'mdy')` → `9 Mar 1978`), only
+  where nothing else is printed beside it or only a qualifier, which it keeps
+  (`abt 3/9/1978` → `Abt 9 Mar 1978`); anything else keeps both readings. It never
+  overrides a date that reads one way. A typewriter space is
   closed first (`7- 8-1971` reads as `7-8-1971`), and a blank for the day or month
   (`9/ /1979`, `/07/1879`) gives the month only where the order puts it there,
   otherwise the year alone

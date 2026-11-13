@@ -23,6 +23,9 @@ import {
  */
 export type DateOrder = 'dmy' | 'mdy';
 
+// The qualifiers a reading picked by the order keeps: a printed `abt 7-8-1971` is `Abt 7 Aug 1971`.
+const QUALIFIERS: Set<string> = new Set(['Abt', 'Cal', 'Est', 'Bef', 'Aft']);
+
 // ---------- Token types ----------
 interface Token {
   type: 'num' | 'str' | 'sym';
@@ -532,10 +535,19 @@ export function stdDate(raw: string, order?: DateOrder): string {
       const interp1 = orParts[1].trim();
       const interp2 = orParts[2].trim();
 
-      // The book's order picks one reading: the first is month first, the second day first. Not where
-      // the book itself printed an "or", whose two halves are not the two readings of one date.
-      const printedOr = /\bor\b/i.test(text.replace(/__OR__.*?__OR__.*?__OR__/g, ' '));
-      let result = order && !printedOr ? (order === 'mdy' ? interp1 : interp2) : `${interp1} or ${interp2}`;
+      // The book's order picks one reading (the first is month first, the second day first), but only
+      // where nothing else is printed beside the date, or only a qualifier, which the reading keeps.
+      // Anything else (a second date, a range, a printed "or", a word it does not know) keeps both
+      // readings, so a picked reading never hides what it leaves out.
+      const sentinels = text.match(/__OR__.*?__OR__.*?__OR__/g) ?? [];
+      const around = tokenize(normalizeAccents(text.replace(/__OR__.*?__OR__.*?__OR__/g, ' ')))
+        .map((t) => MODIFIERS.get(t.type === 'str' ? t.value.toLowerCase() : t.value));
+      const onlyQualifiers = around.every((m) => m !== undefined && QUALIFIERS.has(m));
+      let result = `${interp1} or ${interp2}`;
+      if (order && sentinels.length === 1 && onlyQualifiers) {
+        const reading = order === 'mdy' ? interp1 : interp2;
+        result = around.length ? `${around[0]} ${reading}` : reading;
+      }
       if (trailingParen) result += ' ' + trailingParen;
       if (uncertain) result += ' (?)';
       return result;

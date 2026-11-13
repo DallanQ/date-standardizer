@@ -615,6 +615,20 @@ describe('stdDate', () => {
         expect(stdDate('3/9/1978 or 3/10/1978', order)).toBe(stdDate('3/9/1978 or 3/10/1978'));
       }
     });
+    test('keeps a qualifier printed beside the date', () => {
+      expect(stdDate('abt 7-8-1971', 'dmy')).toBe('Abt 7 Aug 1971');
+      expect(stdDate('after 9-4-1843', 'mdy')).toBe('Aft 4 Sep 1843');
+      expect(stdDate('CA 1/12-1910', 'mdy')).toBe('Abt 12 Jan 1910');
+      expect(stdDate('bef. 3/9/1978?', 'dmy')).toBe('Bef 3 Sep 1978 (?)');
+    });
+    test('keeps both readings when anything else is printed beside the date', () => {
+      for (const order of ['mdy', 'dmy'] as const) {
+        for (const raw of ['3-4-1900 to 5-6-1901', 'Bet 3/9/1978 and 5/9/1979', '4-12-1787 1776',
+          'will 2-1-1829', 'abt- 3-9-1978', '3-9-1978-', '3/9/1978 4/9/1978']) {
+          expect(stdDate(raw, order)).toBe(stdDate(raw));
+        }
+      }
+    });
     test('an "or" inside the trailing parenthetical is kept there, as printed', () => {
       expect(stdDate('11-3-1862(or 11-5-1863)', 'mdy')).toBe('3 Nov 1862 (or 11-5-1863)');
     });
