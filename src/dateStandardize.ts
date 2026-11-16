@@ -16,6 +16,16 @@ import {
   WFT_PATTERN,
 } from './dateConstants';
 
+// ---------- The book's order ----------
+/**
+ * The order a book prints its all-number dates in: day first (`13-2-1700`) or month first
+ * (`2-13-1700`). The caller decides it from the book; `stdDate` only applies it.
+ */
+export type DateOrder = 'dmy' | 'mdy';
+
+// The qualifiers a reading picked by the order keeps: a printed `abt 7-8-1971` is `Abt 7 Aug 1971`.
+const QUALIFIERS: Set<string> = new Set(['Abt', 'Cal', 'Est', 'Bef', 'Aft']);
+
 // ---------- Token types ----------
 interface Token {
   type: 'num' | 'str' | 'sym';
@@ -82,8 +92,26 @@ function numToMonth(n: number): string | undefined {
   return undefined;
 }
 
+// ---------- Is a month named in this text? ----------
+function namesAMonth(s: string): boolean {
+  const words = normalizeAccents(s).toLowerCase().match(/[a-z]+/g) ?? [];
+  return words.some((w) => MONTHS.has(w));
+}
+
+// ---------- A date with a blank for its day or its month ----------
+// `numberIs` says where the printed number stands: before the blank (`9/ /1979`) or after it
+// (`/07/1879`). It is the month only where the book's order puts the month there.
+function blankDate(num: string, numberIs: 'first' | 'second', year: string, order?: DateOrder): string | undefined {
+  const n = parseInt(num, 10);
+  const y = parseInt(year, 10);
+  if (y < 1000 || y > 2200) return undefined;
+  const monthHere = (numberIs === 'first' && order === 'mdy') || (numberIs === 'second' && order === 'dmy');
+  const mon = monthHere && n >= 1 && n <= 12 ? numToMonth(n) : undefined;
+  return mon ? `${mon} ${y}` : `${y}`;
+}
+
 // ---------- Pre-processing ----------
-function preProcess(raw: string): { text: string; trailingParen: string; uncertain: boolean; orDates: string[] | null } {
+function preProcess(raw: string, order?: DateOrder): { text: string; trailingParen: string; uncertain: boolean; orDates: string[] | null } {
   let text = raw;
   let trailingParen = '';
   let uncertain = false;
@@ -134,6 +162,23 @@ function preProcess(raw: string): { text: string; trailingParen: string; uncerta
     }
     return _match;
   });
+
+  // Close a typewriter space in an all-number date: `7- 8-1971` reads as `7-8-1971`. Only between
+  // two small numbers before a four-digit year, so a range such as `1865 - 1900` is untouched, and
+  // never after a named month, where the numbers are a day and something else.
+  text = text.replace(/(?<!\d)(\d{1,2})-\s+(\d{1,2})-(\d{4})(?!\d)/g,
+    (_match, a, b, y, offset: number, whole: string) =>
+      namesAMonth(whole.slice(0, offset)) ? _match : `${a}-${b}-${y}`);
+
+  // A blank where the day or the month should be: `9/ /1979`, `11- -1981`, `02/__/1932`, `10--1740`,
+  // and `/07/1879`. The number beside the blank is the month in one order and the day in the other,
+  // so it is read as the month only in the book's order; otherwise only the year is sure. Never after
+  // a named month, where the number is the day (`Sept. 7--1800`).
+  text = text.replace(/(?<![\d/.\-])(\d{1,2})\s*([/.\-])[\s_]*\2\s*(\d{4})(?!\d)/g,
+    (_match, n, _sep, y, offset: number, whole: string) =>
+      namesAMonth(whole.slice(0, offset)) ? _match : (blankDate(n, 'first', y, order) ?? _match));
+  text = text.replace(/^[\s_]*([/.\-])\s*(\d{1,2})\s*\1\s*(\d{4})(?!\d)/,
+    (_match, _sep, n, y) => blankDate(n, 'second', y, order) ?? _match);
 
   // Handle ambiguous mm-dd-yyyy / dd-mm-yyyy
   text = text.replace(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})/g, (_match, a, b, y) => {
@@ -441,7 +486,11 @@ function findAllModifier(tokens: Token[], keyword: string): number[] {
 }
 
 // ---------- Main export ----------
-export function stdDate(raw: string): string {
+export function stdDate(raw: string, order?: DateOrder): string {
+  if (order !== undefined && order !== 'dmy' && order !== 'mdy') {
+    throw new Error(`stdDate: order must be 'dmy' or 'mdy', not ${JSON.stringify(order)}`);
+  }
+
   // 1. Empty/whitespace
   if (!raw || !raw.trim()) return '';
 
@@ -475,7 +524,7 @@ export function stdDate(raw: string): string {
   }
 
   // 5. Pre-process
-  const { text, trailingParen, uncertain } = preProcess(trimmed);
+  const { text, trailingParen, uncertain } = preProcess(trimmed, order);
 
   if (!text) return '';
 
@@ -486,8 +535,19 @@ export function stdDate(raw: string): string {
       const interp1 = orParts[1].trim();
       const interp2 = orParts[2].trim();
 
-      // Parse each interpretation (they may have prefixes from pre-processing)
+      // The book's order picks one reading (the first is month first, the second day first), but only
+      // where nothing else is printed beside the date, or only a qualifier, which the reading keeps.
+      // Anything else (a second date, a range, a printed "or", a word it does not know) keeps both
+      // readings, so a picked reading never hides what it leaves out.
+      const sentinels = text.match(/__OR__.*?__OR__.*?__OR__/g) ?? [];
+      const around = tokenize(normalizeAccents(text.replace(/__OR__.*?__OR__.*?__OR__/g, ' ')))
+        .map((t) => MODIFIERS.get(t.type === 'str' ? t.value.toLowerCase() : t.value));
+      const onlyQualifiers = around.every((m) => m !== undefined && QUALIFIERS.has(m));
       let result = `${interp1} or ${interp2}`;
+      if (order && sentinels.length === 1 && onlyQualifiers) {
+        const reading = order === 'mdy' ? interp1 : interp2;
+        result = around.length ? `${around[0]} ${reading}` : reading;
+      }
       if (trailingParen) result += ' ' + trailingParen;
       if (uncertain) result += ' (?)';
       return result;
