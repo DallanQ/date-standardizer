@@ -484,6 +484,15 @@ describe('stdDate', () => {
     test('YYYYMMDD', () => { expect(stdDate('19000914')).toBe('14 Sep 1900'); });
   });
 
+  describe('words that are not date language', () => {
+    test('are dropped, and the date beside them is read', () => {
+      expect(stdDate('w.d. 29 Mar. 1668')).toBe('29 Mar 1668');
+      expect(stdDate('w.p. Apr. 1684')).toBe('Apr 1684');
+      expect(stdDate('W.D. will made Nov. 1856')).toBe('Nov 1856');
+      expect(stdDate('asdf Apr. 22, 1748')).toBe('22 Apr 1748');
+    });
+  });
+
   describe('ranges', () => {
     test('Bet/and', () => {
       expect(stdDate('BET 28 SEP 1974 AND 5 OCT 1978')).toBe('Bet 28 Sep 1974 and 5 Oct 1978');
