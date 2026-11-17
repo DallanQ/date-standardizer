@@ -824,7 +824,14 @@ export function stdDate(raw: string, order?: DateOrder): string {
 
 
 // ---------- Range gap filling ----------
+// The qualifiers that say a date is not exact. A range already says so, and GEDCOM has none inside
+// one (`about 1750-55` is `Bet 1750 and 1755`). Before and after change what the range means, so stay.
+const APPROXIMATIONS = new Set(['Abt', 'Est', 'Cal']);
+
 function fillRangeGaps(date1: DateParts, date2: DateParts): void {
+  for (const date of [date1, date2]) {
+    if (date.modifier && APPROXIMATIONS.has(date.modifier)) date.modifier = undefined;
+  }
   // `Oct 16-23, 1910`: two days of one month, whose month is printed once, before them, and the year
   // once, after them. The second day takes the month only then, while the first has no year of its own.
   const yearPrintedOnce = !date1.year;

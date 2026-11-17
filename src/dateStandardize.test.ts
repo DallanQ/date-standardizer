@@ -736,6 +736,18 @@ describe('stdDate', () => {
     });
   });
 
+  describe('an approximation on a range', () => {
+    test('is dropped, as the range already says the date is not exact', () => {
+      expect(stdDate('about 1750-55')).toBe('Bet 1750 and 1755');
+      expect(stdDate('ca 1775-80')).toBe('Bet 1775 and 1780');
+      expect(stdDate('abt 1813-1814')).toBe('Bet 1813 and 1814');
+      expect(stdDate('bet abt 1820 and est 1830')).toBe('Bet 1820 and 1830');
+    });
+    test('before and after stay, as they change what the range means', () => {
+      expect(stdDate('bef 1820-1830')).toContain('Bef');
+    });
+  });
+
   describe('double-dating (split years)', () => {
     test('basic', () => {
       expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');
