@@ -123,6 +123,9 @@ export const MODIFIERS: Map<string, string> = new Map([
   ['about', 'Abt'], ['approx', 'Abt'], ['approximately', 'Abt'],
   ['circa', 'Abt'], ['ca', 'Abt'], ['c', 'Abt'], ['cir', 'Abt'],
   ['abt', 'Abt'],
+  // The books' own words for about (`around 1844`, `ab. 1865`), and `prob.`, which they print where they
+  // mean about (`prob. 1791`). Not `post`: `post. 22 Nov 1915` is a birth printed as posthumous.
+  ['around', 'Abt'], ['ab', 'Abt'], ['prob', 'Abt'], ['probably', 'Abt'],
   // Non-English about
   ['vers', 'Abt'], ['omstreeks', 'Abt'], ['omstr', 'Abt'],
   ['omkring', 'Abt'], ['omk', 'Abt'],
@@ -132,11 +135,12 @@ export const MODIFIERS: Map<string, string> = new Map([
 
   // Est
   ['est', 'Est'], ['estimated', 'Est'], ['estd', 'Est'],
-  ['say', 'Est'], ['probably', 'Est'], ['maybe', 'Est'], ['prob', 'Est'],
-  ['int', 'Est'], ['interpreted', 'Est'], ['ansl', 'Est'], ['anslat', 'Est'],
+  ['say', 'Est'], ['maybe', 'Est'],
+  // Not `int`: in the books it is a marriage's intentions (`Int. 1751`), so the word is dropped.
+  ['interpreted', 'Est'], ['ansl', 'Est'], ['anslat', 'Est'],
 
   // Bef
-  ['bef', 'Bef'], ['before', 'Bef'], ['bfr', 'Bef'], ['by', 'Bef'],
+  ['bef', 'Bef'], ['before', 'Bef'], ['bfr', 'Bef'], ['by', 'Bef'], ['ante', 'Bef'],
   ['voor', 'Bef'], ['avant', 'Bef'],
   ['<', 'Bef'],
 

@@ -98,8 +98,10 @@ const MONTH_DAY_DASH_YEAR = new RegExp(
 // the second year the book may print after it (`1720/21`, `1747-8`).
 // The words that mark a month given by its number (`7 mo`, `9m`, `10th month`).
 const MONTH_NUMBER_WORDS = ['month', 'mth', 'mo', 'm'];
-const QUAKER_MONTH = new RegExp(
-  String.raw`(?<!\d)(\d{1,2})(?:${DAY_ORDINALS.join('|')})?\s*[.:;]?\s*(?:${MONTH_NUMBER_WORDS.join('|')})\b\.?`, 'gi');
+// The word may carry a raised letter (`12mº`, `9thmᵒ`, `9th moⁿ`), and no other letter or digit may follow it: in
+// `5 März` the `M` begins a word.
+const QUAKER_MONTH = new RegExp(String.raw`(?<!\d)(\d{1,2})(?:${DAY_ORDINALS.join('|')})?\s*[.:;]?\s*`
+  + String.raw`(?:${MONTH_NUMBER_WORDS.join('|')})[ºᵒⁿ]*(?![\p{L}\p{N}_])\.?`, 'giu');
 const QUAKER_YEAR = /(?<!\d)(\d{4})(\s*[/-]\s*\d{1,4})?(?!\d)/g;
 // The year the English calendar began on 1 January rather than in March: a Quaker first month is
 // March before it and January from it.
@@ -115,13 +117,15 @@ const OLD_STYLE_FIRST_MONTH = MONTH_NUM.get('Mar') as number;
 function quakerDate(text: string): string {
   const months = [...text.matchAll(QUAKER_MONTH)];
   const years = [...text.matchAll(QUAKER_YEAR)];
-  if (months.length !== 1 || years.length !== 1) return text;
+  // The same year printed twice (`in the year 1665 1665`: the record's and its copy's) is one year.
+  if (months.length !== 1 || new Set(years.map((y) => y[0])).size !== 1) return text;
   const [mo, yr] = [months[0], years[0]];
   const q = parseInt(mo[1], 10);
   const y = parseInt(yr[1], 10);
   if (q < 1 || q > MONTH_NUM.size || y < 1000 || y > 2200) return text;
   const inside = (i: number, m: RegExpMatchArray): boolean => i >= (m.index ?? 0) && i < (m.index ?? 0) + m[0].length;
-  const others = [...text.matchAll(/\d+/g)].filter((n) => !inside(n.index ?? 0, mo) && !inside(n.index ?? 0, yr));
+  const others = [...text.matchAll(/\d+/g)]
+    .filter((n) => !inside(n.index ?? 0, mo) && !years.some((y) => inside(n.index ?? 0, y)));
   if (others.length > 1) return text;
   const oldStyle = y < NEW_STYLE_FROM;
   const month = oldStyle ? (q + OLD_STYLE_FIRST_MONTH - 2) % MONTH_NUM.size + 1 : q;
@@ -131,6 +135,7 @@ function quakerDate(text: string): string {
   const parts: [number, number, string][] = [
     [mo.index ?? 0, (mo.index ?? 0) + mo[0].length, ` ${numToMonth(month)} `],
     [yr.index ?? 0, (yr.index ?? 0) + yr[0].length, year],
+    ...years.slice(1).map((y): [number, number, string] => [y.index ?? 0, (y.index ?? 0) + y[0].length, '']),
   ];
   parts.sort((a, b) => a[0] - b[0]);
   let out = '';
@@ -143,16 +148,24 @@ function quakerDate(text: string): string {
 }
 
 // Part of a year: a missing last digit is a decade (`186-`, `186_`, `186`, `190?-`), and two missing
-// digits a century (`19__`, `18--`). Only where the cell is that and nothing else, or an approximation
-// and it, which a range drops anyway (`ca 170-`).
-const DECADE = /^\s*(?:([A-Za-z]+)\.?\s+)?(\d{3})(?:\s*[-_?])*\s*$/;
-const CENTURY = /^\s*(?:([A-Za-z]+)\.?\s+)?(\d{2})(?:\s*[-_?]){2,}\s*$/;
+// digits a century (`19__`, `18--`); and a decade or a century written with an `s` (`1850's`, `1870s`, and
+// `1800's`, the century, which holds the decade 1800-1809 too if that is what was meant). Only where the
+// cell is that and nothing else but an approximation, which a range drops anyway (`ca 170-`), or words that
+// say only where in it (`early 1870's`, `in the 1850's`).
+const YEAR_PART_WORDS = String.raw`^\s*((?:[A-Za-z]+\.?[\s,;-]+)*)`;
+const DECADE = new RegExp(String.raw`${YEAR_PART_WORDS}(\d{3})(?:\s*[-_?])*\s*$`);
+const CENTURY = new RegExp(String.raw`${YEAR_PART_WORDS}(\d{2})(?:\s*[-_?]){2,}\s*$`);
+const DECADE_WITH_S = new RegExp(String.raw`${YEAR_PART_WORDS}(\d{2}[1-9])0\s*['’]?\s*s\s*$`, 'i');
+const CENTURY_WITH_S = new RegExp(String.raw`${YEAR_PART_WORDS}(\d{2})00\s*['’]?\s*s\s*$`, 'i');
+const WITHIN_A_SPAN = new Set(['early', 'mid', 'late', 'in', 'the']);
 
 function partOfAYear(text: string): string | undefined {
-  for (const [rx, span] of [[DECADE, 10], [CENTURY, 100]] as const) {
+  for (const [rx, span] of [[DECADE, 10], [CENTURY, 100], [DECADE_WITH_S, 10], [CENTURY_WITH_S, 100]] as const) {
     const m = text.match(rx);
     if (!m) continue;
-    if (m[1] && !APPROXIMATIONS.has(MODIFIERS.get(m[1].toLowerCase()) ?? '')) return undefined;
+    const words = m[1].match(/[A-Za-z]+/g) ?? [];
+    if (words.some((w) => !WITHIN_A_SPAN.has(w.toLowerCase())
+      && !APPROXIMATIONS.has(MODIFIERS.get(w.toLowerCase()) ?? ''))) return undefined;
     const first = parseInt(m[2], 10) * span;
     const last = first + span - 1;
     return first >= 1000 && last <= 2200 ? `${first}-${last}` : undefined;
@@ -178,6 +191,163 @@ function monthNamedIn(s: string): boolean {
 // A month's two-letter code (see TWO_LETTER_MONTHS) standing alone as a word.
 const TWO_LETTER_MONTH = new RegExp(
   String.raw`(?<![A-Za-z0-9])(${[...TWO_LETTER_MONTHS.keys()].join('|')})(?![A-Za-z0-9])`, 'gi');
+
+// A digit the scanner read as a letter: `I` or `l` for 1, `O` for 0 (`I664`, `Feb.I0`, `18O5`). Only in a number
+// of at most four characters with a digit in it, so a word (`II`, `Dec. I`) and a longer number (`1789I`) stay.
+const LETTER_FOR_DIGIT = /(?<![A-Za-z0-9])(?=[0-9IlO]{0,3}[0-9])[0-9IlO]{1,4}(?![A-Za-z0-9])/g;
+const DIGIT_OF_LETTER: Record<string, string> = { I: '1', l: '1', O: '0' };
+// And a day written in those letters alone, right after a month (`Oct. II`, `Dec. I`): a word is not a day there.
+const LETTER_DAY_AFTER_MONTH = /(?<![A-Za-z])([A-Za-z]+)(\.\s*|\s+)([IlO]{1,2})(?![A-Za-z0-9])/g;
+
+// `no later than 1813` is before it, and `not earlier than 1751` after it.
+const NO_LATER_OR_EARLIER = /\bnot? (later|earlier) than\b/gi;
+
+// A day the books name instead of numbering it (`Christmas 1873`, `New Year's Day 1868`): its day and month.
+const NAMED_DAYS: [RegExp, number, number][] = [
+  [/\b(?:christmas|xmas)\s+eve\b/gi, 24, 12],
+  [/\b(?:christmas|xmas)(?:\s+day)?\b/gi, 25, 12],
+  [/\bnew\s+year['’]?s?\s+eve\b/gi, 31, 12],
+  [/\bnew\s+year['’]?s?\s+day\b/gi, 1, 1],
+];
+
+// Numbers the books write in words, read as digits: a day (`twenty-seventh of November 1771`, `February sixth,
+// 1861`), a Quaker month (`the sixth month`) and a year (`one thousand eight hundred and ninety eight`, `nineteen
+// hundred and 97`, `Eighteen thirty-eight`). A counting word is read only beside a day, a month or a month's name
+// (`fourteen day of the 5 month`, `Twenty eight March`), so `two months ago` and `some twenty years` keep theirs.
+const NUMBER_WORDS: Map<string, number> = new Map([
+  ['one', 1], ['two', 2], ['three', 3], ['four', 4], ['five', 5], ['six', 6], ['seven', 7], ['eight', 8], ['nine', 9],
+  ['ten', 10], ['eleven', 11], ['twelve', 12], ['thirteen', 13], ['fourteen', 14], ['fifteen', 15], ['sixteen', 16],
+  ['seventeen', 17], ['eighteen', 18], ['nineteen', 19], ['twenty', 20], ['thirty', 30], ['forty', 40], ['fifty', 50],
+  ['sixty', 60], ['seventy', 70], ['eighty', 80], ['ninety', 90],
+]);
+const ORDINAL_WORDS: Map<string, number> = new Map([
+  ['first', 1], ['second', 2], ['third', 3], ['fourth', 4], ['fifth', 5], ['sixth', 6], ['seventh', 7], ['eighth', 8],
+  ['ninth', 9], ['tenth', 10], ['eleventh', 11], ['twelfth', 12], ['thirteenth', 13], ['fourteenth', 14],
+  ['fifteenth', 15], ['sixteenth', 16], ['seventeenth', 17], ['eighteenth', 18], ['nineteenth', 19],
+  ['twentieth', 20], ['thirtieth', 30],
+]);
+const SCALE_WORDS: Map<string, number> = new Map([['hundred', 100], ['thousand', 1000]]);
+// The books' old spellings, beyond the `ff` for a capital F, the `u` for a `v`, the `ea` for an `e` and the final
+// `e` that `numberWord` reads anyway (`ffirst`, `Seuen`, `Eleaventh`, `foure`). Each is printed in two cells or more.
+const OLD_NUMBER_SPELLINGS: Map<string, string> = new Map([
+  ['twelf', 'twelfth'], ['twelveth', 'twelfth'], ['nineth', 'ninth'], ['fift', 'fifth'], ['sixt', 'sixth'],
+  ['forth', 'fourth'], ['fowerth', 'fourth'], ['fiftenth', 'fifteenth'], ['twentifieth', 'twentieth'],
+  ['thirtyeth', 'thirtieth'], ['elventh', 'eleventh'], ['thoussand', 'thousand'], ['thovsand', 'thousand'],
+  ['too', 'two'],
+]);
+// The words after a counting word that make it a day or a month (`fourteen day`, `the seven month`).
+const DAY_OR_MONTH_WORDS = new Set(['day', 'daye', 'd', 'dy', 'month', 'mo']);
+// What an ordinal can count other than a date: a weekday (`first day of the week`) and an age (`thirty fourth year`).
+const DAY_OF_THE_WEEK = /^\W*(?:day|dy|daye)\W+of\W+(?:the|ye)\W+weeke?\b/i;
+const YEAR_WORDS = new Set(['year', 'yeare', 'yr']);
+const WORD_OR_NUMBER = /[A-Za-z]+|\d+|&/g;
+const JOINS_NUMBER_WORDS = /^[\s/-]*$/;
+
+// A date printed before a `to` (or `until`), which starts a range the way a dash does (`1898 to 1900`).
+const TO_WORDS = [...MODIFIERS].filter(([, mod]) => mod === 'To').map(([word]) => word);
+const DATE_BEFORE_TO = new RegExp(String.raw`\d.*\b(${TO_WORDS.join('|')})\b`, 'i');
+
+// The standard spelling of a number word (`ffirst` -> `first`, `Seuen` -> `seven`), or undefined.
+function numberWord(word: string): string | undefined {
+  let w = word.toLowerCase();
+  if (w.startsWith('ff')) w = w.slice(1);
+  const modern = w.replace(/u/g, 'v').replace(/ea/g, 'e');
+  for (const form of [w, w.replace(/e$/, ''), modern, modern.replace(/e$/, '')]) {
+    if (NUMBER_WORDS.has(form) || ORDINAL_WORDS.has(form) || SCALE_WORDS.has(form)) return form;
+  }
+  return OLD_NUMBER_SPELLINGS.get(w);
+}
+
+// Does `text` give a month: a month's name or two-letter code, or a Quaker month's number?
+function givesAMonth(text: string): boolean {
+  return monthNamedIn(text) || text.search(TWO_LETTER_MONTH) >= 0
+    || [...text.matchAll(QUAKER_MONTH)].some((m) => parseInt(m[1], 10) >= 1 && parseInt(m[1], 10) <= MONTH_NUM.size);
+}
+
+// `text` with the numbers it writes in words as digits, where they are a day (unless not `days`), a month or a year.
+function numbersInWords(text: string, days = true): string {
+  const toks = [...text.matchAll(WORD_OR_NUMBER)];
+  const at = (k: number): number => toks[k].index ?? 0;
+  const endOf = (k: number): number => at(k) + toks[k][0].length;
+  let out = '';
+  let pos = 0;
+  let i = 0;
+  while (i < toks.length) {
+    if (numberWord(toks[i][0]) === undefined) {
+      i++;
+      continue;
+    }
+    // The run: number words with spaces, a hyphen or a slash between them (`twenty/seventh`), `and` or `&`
+    // between two of them, and after a hundred or a thousand the year's last digits (`nine hundred and 61`).
+    // An ordinal ends it.
+    let total = 0;
+    let current = 0;
+    let ordinal = false;
+    let scaled = false;
+    let hundred = false;
+    let end = i;
+    let j = i;
+    while (j < toks.length && !ordinal) {
+      if (j > i && !JOINS_NUMBER_WORDS.test(text.slice(endOf(j - 1), at(j)))) break;
+      const tok = toks[j][0];
+      const form = numberWord(tok);
+      if (form === undefined) {
+        if ((tok.toLowerCase() === 'and' || tok === '&') && j + 1 < toks.length
+          && (numberWord(toks[j + 1][0]) !== undefined || (scaled && /^\d+$/.test(toks[j + 1][0])))) {
+          j++;
+          continue;
+        }
+        if (scaled && /^\d+$/.test(tok) && tok.length <= 2) {
+          current += parseInt(tok, 10);
+          end = j;
+        }
+        break;
+      }
+      if (SCALE_WORDS.has(form)) {
+        if (form === 'hundred') {
+          current = (current || 1) * 100;
+          hundred = true;
+        } else {
+          total += (current || 1) * 1000;
+          current = 0;
+        }
+        scaled = true;
+      } else {
+        const value = NUMBER_WORDS.get(form) ?? ORDINAL_WORDS.get(form) ?? 0;
+        ordinal = ORDINAL_WORDS.has(form);
+        // A year said in pairs (`Eighteen thirty-eight`): a teen, then tens.
+        current = current >= 10 && current <= 19 && value % 10 === 0 && !scaled
+          ? current * 100 + value
+          : current + value;
+      }
+      end = j;
+      j++;
+    }
+    const number = total + current;
+    const after = end + 1 < toks.length ? toks[end + 1][0] : '';
+    const before = i > 0 ? toks[i - 1][0] : '';
+    const isYear = scaled || number >= 1000;
+    let read: boolean;
+    if (isYear && SCALE_WORDS.has(numberWord(toks[end][0]) ?? '') && /^[A-Za-z]+$/.test(after) && !isMonth(after)) {
+      read = false;                     // `Eighteen Hundred Eorty`: the year goes on in a word not read
+    } else if (total && current && !hundred) {
+      read = false;                     // `one thousand Seuen and thirty fiue`: its hundreds were left out
+    } else if (!isYear && !ordinal && /^\d+$/.test(before) && text.slice(endOf(i - 1), at(i)).trim() === '') {
+      read = false;                     // `14ten August`: the German ending of the number before it
+    } else if (ordinal && (YEAR_WORDS.has(after.toLowerCase()) || DAY_OF_THE_WEEK.test(text.slice(endOf(end))))) {
+      read = false;                     // a weekday or an age, not a date
+    } else {
+      read = isYear || ordinal || DAY_OR_MONTH_WORDS.has(after.toLowerCase()) || isMonth(after) || isMonth(before);
+    }
+    if (read && !days && !isYear && !MONTH_NUMBER_WORDS.includes(after.toLowerCase())) read = false;
+    if (read) {
+      out += text.slice(pos, at(i)) + String(number);
+      pos = endOf(end);
+    }
+    i = end + 1;
+  }
+  return out + text.slice(pos);
+}
 
 // The month a Roman numeral names, as the number `iso` reads.
 function romanMonth(numeral: string): string {
@@ -269,6 +439,20 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     text = parenMatch[1].trim();
     trailingParen = parenMatch[2];
   }
+  // GEDCOM's interpreted date, `INT 29 Sep 1874 (second-last day of month)`, is an estimate. Without the phrase,
+  // the books' `int.` is a marriage's intentions (`Int. 1751`), and the word is dropped.
+  if (trailingParen) text = text.replace(/^int\b\.?/i, 'est');
+
+  text = text.replace(LETTER_FOR_DIGIT, (token: string) => token.replace(/[IlO]/g, (c: string) => DIGIT_OF_LETTER[c]));
+  text = text.replace(LETTER_DAY_AFTER_MONTH, (match: string, word: string, gap: string, day: string) =>
+    (isMonth(word) ? `${word}${gap}${day.replace(/[IlO]/g, (c: string) => DIGIT_OF_LETTER[c])}` : match));
+  text = text.replace(NO_LATER_OR_EARLIER, (_match: string, word: string) =>
+    (word.toLowerCase() === 'later' ? 'bef' : 'aft'));
+  for (const [rx, day, month] of NAMED_DAYS) text = text.replace(rx, `${day} ${numToMonth(month)}`);
+  // A number word that is the day is read only where the date gives its month too: a day with no month goes up as
+  // `8 1663`, which reads as August (C's rule: then the year alone).
+  const wordsRead = numbersInWords(text);
+  text = givesAMonth(wordsRead) ? wordsRead : numbersInWords(text, false);
 
   // Part of a year, before the question mark is read: a `?` there is a missing digit (`190?-`).
   text = partOfAYear(text) ?? text;
@@ -435,6 +619,11 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     }
   }
 
+  // A date before a `to` is where the range starts, as it is before a dash (`1898 to 1900`).
+  if (!/\b(from|frm|bet|btw|between)\b/i.test(text) && DATE_BEFORE_TO.test(text)) {
+    text = 'from ' + text;
+  }
+
   return { text: text.trim(), trailingParen, uncertain, orDates };
 }
 
@@ -499,7 +688,9 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
           continue;
         }
         if (parts.modifier) {
-          // Double modifier — keep the first (primary)
+          // Double modifier — keep the first (primary), unless the first says only that the date is not exact
+          // and the second that it is before or after (`prob. before 1814`), as a range drops an approximation.
+          if (APPROXIMATIONS.has(parts.modifier) && OPEN_ENDS.has(mod)) parts.modifier = mod;
           i++;
           continue;
         }
@@ -654,7 +845,9 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
 
   // A day the month does not have, with the month printed as a word (`31 Nov. 1706`): the month is
   // sure and the day is the likely misreading, so the month and the year are kept.
-  if (parts.day && parts.month && !dayFits(parts.day, MONTH_NUM.get(parts.month) ?? 0)) parts.day = undefined;
+  if (parts.day !== undefined && parts.month && !dayFits(parts.day, MONTH_NUM.get(parts.month) ?? 0)) {
+    parts.day = undefined;
+  }
 
   return parts;
 }
@@ -878,6 +1071,8 @@ export function stdDate(raw: string, order?: DateOrder): string {
 // The qualifiers that say a date is not exact. A range already says so, and GEDCOM has none inside
 // one (`about 1750-55` is `Bet 1750 and 1755`). Before and after change what the range means, so stay.
 const APPROXIMATIONS = new Set(['Abt', 'Est', 'Cal']);
+// The qualifiers that say on which side of the date it fell.
+const OPEN_ENDS = new Set(['Bef', 'Aft']);
 
 function fillRangeGaps(date1: DateParts, date2: DateParts): void {
   for (const date of [date1, date2]) {

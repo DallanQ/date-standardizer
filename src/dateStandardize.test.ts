@@ -259,16 +259,18 @@ describe('MODIFIERS', () => {
     expect(MODIFIERS.get('about')).toBe('Abt');
     expect(MODIFIERS.get('approx')).toBe('Abt');
     expect(MODIFIERS.get('approximately')).toBe('Abt');
+    expect(MODIFIERS.get('around')).toBe('Abt');
+    expect(MODIFIERS.get('ab')).toBe('Abt');
+    expect(MODIFIERS.get('probably')).toBe('Abt');
+    expect(MODIFIERS.get('prob')).toBe('Abt');
   });
 
   test('synonym collapsing — Est variants', () => {
     expect(MODIFIERS.get('say')).toBe('Est');
-    expect(MODIFIERS.get('probably')).toBe('Est');
     expect(MODIFIERS.get('maybe')).toBe('Est');
-    expect(MODIFIERS.get('prob')).toBe('Est');
     expect(MODIFIERS.get('estimated')).toBe('Est');
     expect(MODIFIERS.get('estd')).toBe('Est');
-    expect(MODIFIERS.get('int')).toBe('Est');
+    expect(MODIFIERS.has('int')).toBe(false);
     expect(MODIFIERS.get('interpreted')).toBe('Est');
     expect(MODIFIERS.get('ansl')).toBe('Est');
     expect(MODIFIERS.get('anslat')).toBe('Est');
@@ -783,6 +785,117 @@ describe('stdDate', () => {
       expect(stdDate('22 7 mo 1693 or 28 7 mo 1698')).not.toContain('Sep');
       expect(stdDate('12th Dy of the 5th mo and 3d Dy of the week the year 1715')).not.toContain('Jul');
     });
+    test('a year printed twice is one year', () => {
+      expect(stdDate('15 7 mo 1725 1725')).toBe('15 Sep 1725');
+      expect(stdDate('fift Day of the seven month in the year 1665 1665')).toBe('5 Sep 1665');
+    });
+    test('the month word may carry a raised letter, and does not start a longer word', () => {
+      expect(stdDate('16 12mº 1701')).toBe('16 Feb 1702');
+      expect(stdDate('30th of ye 9th moⁿ 1700')).toBe('30 Nov 1700');
+      expect(stdDate('24 day 9thmᵒ 1766')).toBe('24 Sep 1766');
+      expect(stdDate('5. März 1885')).toBe('5 Mar 1885');
+    });
+  });
+
+  describe('words it reads wrong', () => {
+    test('about, before and after in the books\' words', () => {
+      expect(stdDate('around 1844')).toBe('Abt 1844');
+      expect(stdDate('ab. 1865')).toBe('Abt 1865');
+      expect(stdDate('1680 ab.')).toBe('Abt 1680');
+      expect(stdDate('ante 1609')).toBe('Bef 1609');
+      expect(stdDate('no later than 1813')).toBe('Bef 1813');
+      expect(stdDate('not earlier than 1751')).toBe('Aft 1751');
+      expect(stdDate('prob. 1791')).toBe('Abt 1791');
+    });
+    test('before or after wins over an approximation', () => {
+      expect(stdDate('prob. before 1814')).toBe('Bef 1814');
+      expect(stdDate('abt bef 1850')).toBe('Bef 1850');
+    });
+    test('post. is posthumous, and int. a marriage\'s intentions', () => {
+      expect(stdDate('post. 22 Nov 1915')).toBe('22 Nov 1915');
+      expect(stdDate('Int. Dec 19- 1813')).toBe('19 Dec 1813');
+      expect(stdDate('Int. 1751')).toBe('1751');
+      expect(stdDate('Dec. 14. 1776 Int')).toBe('14 Dec 1776');
+    });
+    test('a date before a to starts a range', () => {
+      expect(stdDate('1807 to 1818')).toBe('Bet 1807 and 1818');
+      expect(stdDate('about 1695 to 1698')).toBe('Bet 1695 and 1698');
+      expect(stdDate('Jan 5 to Feb 6, 1850')).toBe('Bet 5 Jan 1850 and 6 Feb 1850');
+      expect(stdDate('until 1850')).toBe('Bef 1850');
+    });
+    test('a decade or a century written with an s', () => {
+      expect(stdDate("1850's")).toBe('Bet 1850 and 1859');
+      expect(stdDate('1870s')).toBe('Bet 1870 and 1879');
+      expect(stdDate('1850’s')).toBe('Bet 1850 and 1859');
+      expect(stdDate("1800's")).toBe('Bet 1800 and 1899');
+      expect(stdDate("early 1870's")).toBe('Bet 1870 and 1879');
+      expect(stdDate("in the 1850's")).toBe('Bet 1850 and 1859');
+      expect(stdDate("circa; mid 1700's")).toBe('Bet 1700 and 1799');
+      expect(stdDate('probably 1780s')).toBe('Bet 1780 and 1789');
+      expect(stdDate('by the 1690s')).not.toContain('1699');
+    });
+    test('a day the books name', () => {
+      expect(stdDate('Christmas 1873')).toBe('25 Dec 1873');
+      expect(stdDate('Christmas Day of 1848')).toBe('25 Dec 1848');
+      expect(stdDate('Christmas eve 1850')).toBe('24 Dec 1850');
+      expect(stdDate('Xmas Day 1888')).toBe('25 Dec 1888');
+      expect(stdDate("New Year's Eve 1914")).toBe('31 Dec 1914');
+      expect(stdDate("New Year's day 1868")).toBe('1 Jan 1868');
+    });
+    test('numbers written in words', () => {
+      expect(stdDate('twenty-seventh of November 1771')).toBe('27 Nov 1771');
+      expect(stdDate('February sixth, 1861')).toBe('6 Feb 1861');
+      expect(stdDate('twenty first day of February in the year of our Lord one thousand eight hundred and ninety Eight'))
+        .toBe('21 Feb 1898');
+      expect(stdDate('thirty-first of May, in the year 1809')).toBe('31 May 1809');
+      expect(stdDate('twenty/seventh day of ye second month 1734')).toBe('27 Apr 1734');
+      expect(stdDate('Twenty eight March 1920')).toBe('28 Mar 1920');
+      expect(stdDate('October twelve 1923')).toBe('12 Oct 1923');
+      expect(stdDate('7 day of March in the year of our Lord nineteen hundred and 97')).toBe('7 Mar 1997');
+      expect(stdDate('12th day of August, one thousand nine hundred and 61')).toBe('12 Aug 1961');
+      expect(stdDate('December Twenty-third Eighteen thirty-eight')).toBe('23 Dec 1838');
+      expect(stdDate('Eighteen Hundred Thirty-Six')).toBe('1836');
+    });
+    test('a Quaker month in words, in the books\' old spellings', () => {
+      expect(stdDate('12 Sixth month 1740')).toBe('12 Aug 1740');
+      expect(stdDate('Seuenth day of ye First month Called march 1710/11')).toBe('7 Mar 1710/11');
+      expect(stdDate('ffourth day of ye Eleaventh month 1714')).toBe('4 Jan 1715');
+      expect(stdDate('Seventh Day of the Eleventh month in the year one Thousand Six hundred Sixty foure'))
+        .toBe('7 Jan 1665');
+      expect(stdDate('04 day of the twelf month one thousand six hundred and fifty too 1652')).toBe('4 Feb 1653');
+      expect(stdDate('fourteen day of the 5 month in the yeare one thousand six hundred forty two 1642'))
+        .toBe('14 Jul 1642');
+    });
+    test('a number word that is not a date is not read', () => {
+      expect(stdDate('two months ago')).toBe('');
+      expect(stdDate('some twenty years')).toBe('');
+      expect(stdDate('14ten August 1870')).toBe('14 Aug 1870');
+      expect(stdDate('11 ten October 1874')).toBe('11 Oct 1874');
+      expect(stdDate('18th of the 7th mo first Dy of the week 1720')).toBe('18 Sep 1720');
+      expect(stdDate('nineteenth day of ye 6 mo in ye thirty fourth year of his age 1758')).toBe('19 Jun 1758');
+    });
+    test('a number word is not read into a wrong date', () => {
+      expect(stdDate('twenty fower Day of the first month in the year 1674')).toBe('Mar 1674');
+      expect(stdDate('one & twentith day of ye 6th month in the yeare 1716')).toBe('Aug 1716');
+      expect(stdDate('eight Day of the ferst month in the yeare 1663')).toBe('1663');
+      expect(stdDate('June Seventh, Eighteen Hundred Eorty')).toBe('');
+      expect(stdDate('tenth Day of the first month Caulled March one thousand Seuen and thirty fiue'))
+        .not.toContain('1042');
+    });
+    test('a letter the scanner read for a digit', () => {
+      expect(stdDate('I664')).toBe('1664');
+      expect(stdDate('January 29th I962')).toBe('29 Jan 1962');
+      expect(stdDate('l849')).toBe('1849');
+      expect(stdDate('18O5')).toBe('1805');
+      expect(stdDate('Aug. I9, I80I')).toBe('19 Aug 1801');
+      expect(stdDate('1990 Feb.I0')).toBe('10 Feb 1990');
+      expect(stdDate('I985 Oct. II')).toBe('11 Oct 1985');
+      expect(stdDate('I975 Dec. I')).toBe('1 Dec 1975');
+      expect(stdDate('1789I')).toBe('1789');
+      expect(stdDate("March 8th A.D. 1869 8o'clock P.M.")).toBe('8 Mar 1869');
+      expect(stdDate('April 1850')).toBe('Apr 1850');
+      expect(stdDate('19.I.1697')).toBe('19 Jan 1697');
+    });
   });
 
   describe('an approximation on a range', () => {
@@ -812,6 +925,10 @@ describe('stdDate', () => {
     test('the 29th of February is always a day February can have', () => {
       expect(stdDate('29 Feb 1851')).toBe('29 Feb 1851');
       expect(stdDate('2/29/1851')).toBe('29 Feb 1851');
+    });
+    test('a day of 0 is no day', () => {
+      expect(stdDate('0 Dec 1967')).toBe('Dec 1967');
+      expect(stdDate('00JAN1810')).toBe('Jan 1810');
     });
   });
 
