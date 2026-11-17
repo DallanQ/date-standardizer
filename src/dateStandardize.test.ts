@@ -660,6 +660,48 @@ describe('stdDate', () => {
     });
   });
 
+  describe('old month spellings', () => {
+    test("the clerks' contractions and the books' misspellings are read as their month", () => {
+      expect(stdDate('5 Jany 1780')).toBe('5 Jan 1780');
+      expect(stdDate('5 Janry 1780')).toBe('5 Jan 1780');
+      expect(stdDate('5 Janua 1780')).toBe('5 Jan 1780');
+      expect(stdDate('5 Janauary 1780')).toBe('5 Jan 1780');
+      expect(stdDate('5 Feby 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Febry 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Febr 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Feburary 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Febury 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Febuary 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Febrauary 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Mch 1780')).toBe('5 Mar 1780');
+      expect(stdDate('5 Apl 1780')).toBe('5 Apr 1780');
+      expect(stdDate('5 Aprl 1780')).toBe('5 Apr 1780');
+      expect(stdDate('5 Apri 1780')).toBe('5 Apr 1780');
+      expect(stdDate('5 Aprill 1780')).toBe('5 Apr 1780');
+      expect(stdDate('5 Jly 1780')).toBe('5 Jul 1780');
+      expect(stdDate('5 Augt 1780')).toBe('5 Aug 1780');
+      expect(stdDate('5 Augst 1780')).toBe('5 Aug 1780');
+      expect(stdDate('5 Spt 1780')).toBe('5 Sep 1780');
+      expect(stdDate('5 Sepr 1780')).toBe('5 Sep 1780');
+      expect(stdDate('5 Septr 1780')).toBe('5 Sep 1780');
+      expect(stdDate('5 Setember 1780')).toBe('5 Sep 1780');
+      expect(stdDate('5 Octo 1780')).toBe('5 Oct 1780');
+      expect(stdDate('5 Octob 1780')).toBe('5 Oct 1780');
+      expect(stdDate('5 Octobr 1780')).toBe('5 Oct 1780');
+      expect(stdDate('5 Octr 1780')).toBe('5 Oct 1780');
+      expect(stdDate('5 Novr 1780')).toBe('5 Nov 1780');
+      expect(stdDate('5 Decr 1780')).toBe('5 Dec 1780');
+      expect(stdDate('5 Decem 1780')).toBe('5 Dec 1780');
+    });
+    test('as the books print them', () => {
+      expect(stdDate('2 Jly 1830')).toBe('2 Jul 1830');
+      expect(stdDate('Feburary 13, 1872')).toBe('13 Feb 1872');
+      expect(stdDate('23.d febury 1829')).toBe('23 Feb 1829');
+      expect(stdDate('Decemʳ. 13, 1793')).toBe('13 Dec 1793');
+      expect(stdDate('Apl-29, 1894')).toBe('29 Apr 1894');
+    });
+  });
+
   describe('double-dating (split years)', () => {
     test('basic', () => {
       expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');

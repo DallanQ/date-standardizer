@@ -21,6 +21,19 @@ export const MONTHS: Map<string, string> = new Map([
   ['jun', 'Jun'], ['jul', 'Jul'], ['aug', 'Aug'], ['sep', 'Sep'],
   ['oct', 'Oct'], ['nov', 'Nov'], ['dec', 'Dec'],
   ['sept', 'Sep'],
+  // The clerks' old contractions and the books' misspellings (`5 Apl 1780`, `Jany`, `Decr`,
+  // `Feburary`). Each is a word nothing else uses.
+  ['jany', 'Jan'], ['janry', 'Jan'], ['janua', 'Jan'], ['janauary', 'Jan'],
+  ['feby', 'Feb'], ['febry', 'Feb'], ['febr', 'Feb'], ['feburary', 'Feb'], ['febury', 'Feb'],
+  ['febuary', 'Feb'], ['febrauary', 'Feb'],
+  ['mch', 'Mar'],
+  ['apl', 'Apr'], ['aprl', 'Apr'], ['apri', 'Apr'], ['aprill', 'Apr'],
+  ['jly', 'Jul'],
+  ['augt', 'Aug'], ['augst', 'Aug'],
+  ['spt', 'Sep'], ['sepr', 'Sep'], ['septr', 'Sep'], ['setember', 'Sep'],
+  ['octo', 'Oct'], ['octob', 'Oct'], ['octobr', 'Oct'], ['octr', 'Oct'],
+  ['novr', 'Nov'],
+  ['decr', 'Dec'], ['decem', 'Dec'],
 
   // Dutch
   ['januari', 'Jan'], ['februari', 'Feb'], ['maart', 'Mar'],
