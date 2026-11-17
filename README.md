@@ -20,6 +20,12 @@ BC/BCE, and more.
 - **Ranges** — `Bet X and Y`; `From X to Y` collapses to `Bet X and Y`;
   standalone `From X` → `Aft X`, `To X` → `Bef X`; abbreviated `1875-80` →
   `Bet 1875 and 1880`
+- **"Or" dates** — two or more dates in one cell, with or without a printed `or`:
+  dates in two years go up as between them (`1678 or 9` → `Bet 1678 and 1679`,
+  `abt 1820 1824` → `Bet 1820 and 1824`); dates in one year are each spelled out
+  (`25 or 29 Jan. 1856` → `25 Jan 1856 or 29 Jan 1856`, `16 Sept./Dec. 1785` →
+  `16 Sep 1785 or 16 Dec 1785`). An `or` between words (`in or before 1663`) and a
+  double date (`1722 1723`) are still one date
 - **Special cases** — quarters (`Q1 1850`, `3rd quarter 1923`), split years for
   the Julian/Gregorian transition (`28 Feb 1623/24`), BC/BCE, ambiguous numeric
   dates (`3/9/1978` → `9 Mar 1978 or 3 Sep 1978`), and `YYYYMMDD` (`19000914` →
@@ -50,6 +56,8 @@ stdDate('circa 1850');         // "Abt 1850"
 stdDate('from 1875 to 1880');  // "Bet 1875 and 1880"
 stdDate('3/9/1978');           // "9 Mar 1978 or 3 Sep 1978"
 stdDate('3/9/1978', 'dmy');    // "3 Sep 1978"
+stdDate('25 or 29 Jan. 1856'); // "25 Jan 1856 or 29 Jan 1856"
+stdDate('1678 or 9');          // "Bet 1678 and 1679"
 
 // Helpers operate on standardized output, not raw strings.
 // Modifiers apply fudge factors (Abt ±1yr, Est ±10yrs, Bef/Aft ±10yrs).
