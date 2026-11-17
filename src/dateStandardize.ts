@@ -421,10 +421,9 @@ function blankDate(num: string, numberIs: 'first' | 'second', year: string, orde
 }
 
 // ---------- Pre-processing ----------
-function preProcess(raw: string, order?: DateOrder): { text: string; trailingParen: string; uncertain: boolean; orDates: string[] | null } {
+function preProcess(raw: string, order?: DateOrder): { text: string; trailingParen: string; orDates: string[] | null } {
   let text = raw;
   let trailingParen = '';
-  let uncertain = false;
   const orDates: string[] | null = null;
 
   // Convert em-dashes/en-dashes to hyphens
@@ -457,10 +456,18 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   // Part of a year, before the question mark is read: a `?` there is a missing digit (`190?-`).
   text = partOfAYear(text) ?? text;
 
-  // Handle question mark
+  // A `?` after a whole date is the book doubting it, which is about (`1890?`, `1771 (?)`), unless the date already
+  // says how sure it is (`bef. 3/9/1978?`, `est 1850?`); one standing where a part should be says that part is
+  // unknown, and is dropped (`??? 1760`, `July ? 1931`), leaving a space so the numbers on either side stay apart.
+  if (/^\(\s*\?\s*\)$/.test(trailingParen)) {
+    trailingParen = '';
+    text += '?';
+  }
   if (text.includes('?')) {
-    uncertain = true;
-    text = text.replace(/\?/g, '');
+    const doubted = /\?\s*$/.test(text);
+    text = text.replace(/\?/g, ' ');
+    const qualified = (text.match(/[A-Za-z]+/g) ?? []).some((w) => QUALIFIERS.has(MODIFIERS.get(w.toLowerCase()) ?? ''));
+    if (doubted && !qualified) text = `abt ${text}`;
   }
 
   // Detect YYYYMMDD (exactly 8 digits, standalone)
@@ -602,6 +609,9 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     return _match;
   });
 
+  // A dash with nothing after it stands for a part the book did not print, and is dropped (`1759-`, `1808, July —`).
+  text = text.replace(/\s*-+\s*$/, '');
+
   // Handle dashes as range separators
   if (text.includes('-')) {
     const lowerText = text.toLowerCase();
@@ -624,7 +634,7 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     text = 'from ' + text;
   }
 
-  return { text: text.trim(), trailingParen, uncertain, orDates };
+  return { text: text.trim(), trailingParen, orDates };
 }
 
 // ---------- Main parser ----------
@@ -907,7 +917,7 @@ export function stdDate(raw: string, order?: DateOrder): string {
   }
 
   // 5. Pre-process
-  const { text, trailingParen, uncertain } = preProcess(trimmed, order);
+  const { text, trailingParen } = preProcess(trimmed, order);
 
   if (!text) return '';
 
@@ -932,7 +942,6 @@ export function stdDate(raw: string, order?: DateOrder): string {
         result = around.length ? `${around[0]} ${reading}` : reading;
       }
       if (trailingParen) result += ' ' + trailingParen;
-      if (uncertain) result += ' (?)';
       return result;
     }
   }
@@ -981,7 +990,6 @@ export function stdDate(raw: string, order?: DateOrder): string {
       if (!date1.year && !date2.year) return '';
       let result = `Bet ${d1str} and ${d2str}`;
       if (trailingParen) result += ' ' + trailingParen;
-      if (uncertain) result += ' (?)';
       return result;
     }
   }
@@ -1001,7 +1009,6 @@ export function stdDate(raw: string, order?: DateOrder): string {
       if (!date1.year && !date2.year) return '';
       let result = `Bet ${d1str} and ${d2str}`;
       if (trailingParen) result += ' ' + trailingParen;
-      if (uncertain) result += ' (?)';
       return result;
     }
   }
@@ -1014,7 +1021,6 @@ export function stdDate(raw: string, order?: DateOrder): string {
     date.modifier = 'Aft';
     let result = formatDate(date);
     if (trailingParen) result += ' ' + trailingParen;
-    if (uncertain) result += ' (?)';
     return result;
   }
 
@@ -1026,7 +1032,6 @@ export function stdDate(raw: string, order?: DateOrder): string {
     date.modifier = 'Bef';
     let result = formatDate(date);
     if (trailingParen) result += ' ' + trailingParen;
-    if (uncertain) result += ' (?)';
     return result;
   }
 
@@ -1059,7 +1064,6 @@ export function stdDate(raw: string, order?: DateOrder): string {
     return '';
   }
 
-  if (uncertain) date.uncertain = true;
 
   let result = formatDate(date);
   if (trailingParen) result += ' ' + trailingParen;

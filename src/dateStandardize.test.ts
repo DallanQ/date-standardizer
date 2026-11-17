@@ -474,7 +474,7 @@ describe('stdDate', () => {
       expect(stdDate('(at age 16)')).toBe('(at age 16)');
     });
     test('question mark', () => {
-      expect(stdDate('aft 1823?')).toBe('Aft 1823 (?)');
+      expect(stdDate('aft 1823?')).toBe('Aft 1823');
     });
     test('BC', () => {
       expect(stdDate('15 Mar 44 BC')).toBe('15 Mar 44 BC');
@@ -898,6 +898,35 @@ describe('stdDate', () => {
     });
   });
 
+  describe('a ?, a blank or a dash standing for a missing part', () => {
+    test('a ? after a whole date is about', () => {
+      expect(stdDate('1890?')).toBe('Abt 1890');
+      expect(stdDate('1771 (?)')).toBe('Abt 1771');
+      expect(stdDate('8 Aug 1928?')).toBe('Abt 8 Aug 1928');
+    });
+    test('unless the date already says how sure it is', () => {
+      expect(stdDate('est 1850?')).toBe('Est 1850');
+    });
+    test('a ? standing where a part should be is dropped', () => {
+      expect(stdDate('??? 1760')).toBe('1760');
+      expect(stdDate('July ? 1931')).toBe('Jul 1931');
+      expect(stdDate('? Aug. 1913')).toBe('Aug 1913');
+      expect(stdDate('Aug.12?1823')).toBe('12 Aug 1823');
+      expect(stdDate('189?0-')).not.toContain('1890');
+    });
+    test('a dash with nothing after it is dropped', () => {
+      expect(stdDate('1759-')).toBe('1759');
+      expect(stdDate('Oct 31, 1675-')).toBe('31 Oct 1675');
+      expect(stdDate('1808, July —')).toBe('Jul 1808');
+      expect(stdDate('3-9-1978-', 'mdy')).toBe('9 Mar 1978');
+    });
+    test('the rest of the table, which earlier groups already read', () => {
+      expect(stdDate('after July 9- 1781')).toBe('Aft 9 Jul 1781');
+      expect(stdDate('0 1841')).toBe('1841');
+      expect(stdDate('___ 00 1878')).toBe('1878');
+    });
+  });
+
   describe('an approximation on a range', () => {
     test('is dropped, as the range already says the date is not exact', () => {
       expect(stdDate('about 1750-55')).toBe('Bet 1750 and 1755');
@@ -1023,9 +1052,9 @@ describe('stdDate', () => {
       expect(stdDate('2-10-1937')).toBe('10 Feb 1937 or 2 Oct 1937');
       expect(stdDate('2-10-1937', undefined)).toBe('10 Feb 1937 or 2 Oct 1937');
     });
-    test('keeps the trailing parenthetical and the question mark', () => {
+    test('keeps the trailing parenthetical, and a doubted date is about', () => {
       expect(stdDate('3/9/1978 (bapt)', 'mdy')).toBe('9 Mar 1978 (bapt)');
-      expect(stdDate('3/9/1978?', 'dmy')).toBe('3 Sep 1978 (?)');
+      expect(stdDate('3/9/1978?', 'dmy')).toBe('Abt 3 Sep 1978');
     });
     test('never overrides a date that reads only one way', () => {
       expect(stdDate('3-23-1865', 'dmy')).toBe('23 Mar 1865');
@@ -1045,12 +1074,12 @@ describe('stdDate', () => {
       expect(stdDate('abt 7-8-1971', 'dmy')).toBe('Abt 7 Aug 1971');
       expect(stdDate('after 9-4-1843', 'mdy')).toBe('Aft 4 Sep 1843');
       expect(stdDate('CA 1/12-1910', 'mdy')).toBe('Abt 12 Jan 1910');
-      expect(stdDate('bef. 3/9/1978?', 'dmy')).toBe('Bef 3 Sep 1978 (?)');
+      expect(stdDate('bef. 3/9/1978?', 'dmy')).toBe('Bef 3 Sep 1978');
     });
     test('keeps both readings when anything else is printed beside the date', () => {
       for (const order of ['mdy', 'dmy'] as const) {
         for (const raw of ['3-4-1900 to 5-6-1901', 'Bet 3/9/1978 and 5/9/1979', '4-12-1787 1776',
-          'will 2-1-1829', 'abt- 3-9-1978', '3-9-1978-', '3/9/1978 4/9/1978']) {
+          'will 2-1-1829', 'abt- 3-9-1978', '3/9/1978 4/9/1978']) {
           expect(stdDate(raw, order)).toBe(stdDate(raw));
         }
       }
