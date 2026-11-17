@@ -748,6 +748,25 @@ describe('stdDate', () => {
     });
   });
 
+  describe('a day the month does not have', () => {
+    test('with the month printed as a word, the month and the year are kept', () => {
+      expect(stdDate('31 Nov. 1706')).toBe('Nov 1706');
+      expect(stdDate('Apr 31, 1860')).toBe('Apr 1860');
+      expect(stdDate('May 35,1963')).toBe('May 1963');
+    });
+    test('with every part a number, nothing says which is wrong, so the year is kept', () => {
+      expect(stdDate('4-46-1817')).toBe('1817');
+      expect(stdDate('31 4 1684')).toBe('1684');
+      expect(stdDate('2-30 1827')).toBe('1827');
+      expect(stdDate('1710.2.30')).toBe('1710');
+    });
+    test('the 29th of February is always a day February can have', () => {
+      expect(stdDate('29 Feb 1851')).toBe('29 Feb 1851');
+      expect(stdDate('2/29/1851')).toBe('29 Feb 1851');
+    });
+  });
+
+
   describe('double-dating (split years)', () => {
     test('basic', () => {
       expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');

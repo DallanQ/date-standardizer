@@ -6,6 +6,7 @@ import {
   normalizeAccents,
   MONTHS,
   MONTH_NUM,
+  DAYS_IN_MONTH,
   MODIFIERS,
   QUARTER_WORDS,
   UNKNOWN_PHRASES,
@@ -94,12 +95,15 @@ const MONTH_DAY_DASH_YEAR = new RegExp(
 
 // A month given by its number, as the Quakers wrote it (`3 mo.`, `5th month`, `9m`), and a year with
 // the second year the book may print after it (`1720/21`, `1747-8`).
+// The words that mark a month given by its number (`7 mo`, `9m`, `10th month`).
+const MONTH_NUMBER_WORDS = ['month', 'mth', 'mo', 'm'];
 const QUAKER_MONTH = new RegExp(
-  String.raw`(?<!\d)(\d{1,2})(?:${DAY_ORDINALS.join('|')})?\s*[.:;]?\s*(?:month|mth|mo|m)\b\.?`, 'gi');
+  String.raw`(?<!\d)(\d{1,2})(?:${DAY_ORDINALS.join('|')})?\s*[.:;]?\s*(?:${MONTH_NUMBER_WORDS.join('|')})\b\.?`, 'gi');
 const QUAKER_YEAR = /(?<!\d)(\d{4})(\s*[/-]\s*\d{1,4})?(?!\d)/g;
 // The year the English calendar began on 1 January rather than in March: a Quaker first month is
 // March before it and January from it.
 const NEW_STYLE_FROM = 1752;
+const OLD_STYLE_FIRST_MONTH = MONTH_NUM.get('Mar') as number;
 
 // `15 7 mo 1725` is 15 September 1725. The month is the number written with `mo`, `m` or `month`, and
 // the one other number, if there is one, is the day. Before 1752 the first month is March, and the
@@ -114,13 +118,15 @@ function quakerDate(text: string): string {
   const [mo, yr] = [months[0], years[0]];
   const q = parseInt(mo[1], 10);
   const y = parseInt(yr[1], 10);
-  if (q < 1 || q > 12 || y < 1000 || y > 2200) return text;
+  if (q < 1 || q > MONTH_NUM.size || y < 1000 || y > 2200) return text;
   const inside = (i: number, m: RegExpMatchArray): boolean => i >= (m.index ?? 0) && i < (m.index ?? 0) + m[0].length;
   const others = [...text.matchAll(/\d+/g)].filter((n) => !inside(n.index ?? 0, mo) && !inside(n.index ?? 0, yr));
   if (others.length > 1) return text;
   const oldStyle = y < NEW_STYLE_FROM;
-  const month = oldStyle ? (q + 1) % 12 + 1 : q;
-  const year = oldStyle && q >= 11 && !yr[2] ? `${y + 1}` : yr[0];
+  const month = oldStyle ? (q + OLD_STYLE_FIRST_MONTH - 2) % MONTH_NUM.size + 1 : q;
+  // January and February, the last two months of an Old Style year, fall in the next year as we count.
+  const nextYear = oldStyle && month < OLD_STYLE_FIRST_MONTH;
+  const year = nextYear && !yr[2] ? `${y + 1}` : yr[0];
   const parts: [number, number, string][] = [
     [mo.index ?? 0, (mo.index ?? 0) + mo[0].length, ` ${numToMonth(month)} `],
     [yr.index ?? 0, (yr.index ?? 0) + yr[0].length, year],
@@ -133,6 +139,11 @@ function quakerDate(text: string): string {
     pos = end;
   }
   return out + text.slice(pos);
+}
+
+// Can this month (1-12) have this day? February is given 29: a leap year is always possible.
+function dayFits(day: number, month: number): boolean {
+  return day >= 1 && day <= DAYS_IN_MONTH[month];
 }
 
 // Is this word a month name (`Aug`, `Sept`, `März`)?
@@ -266,6 +277,8 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     const mm = parseInt(m, 10);
     const dd = parseInt(d, 10);
     if (yy >= 1000 && yy <= 2200 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      // A day the month does not have, with every part a number: only the year is sure.
+      if (!dayFits(dd, mm)) return `${yy}`;
       const mon = numToMonth(mm);
       if (mon) return `${dd} ${mon} ${yy}`;
     }
@@ -303,11 +316,13 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     const bIsMonth = bb >= 1 && bb <= 12;
 
     if (aa > 12 && bIsMonth) {
-      // dd-mm-yyyy
+      // dd-mm-yyyy. A day the month does not have, with every part a number: only the year is sure.
+      if (!dayFits(aa, bb)) return `${yy}`;
       const mon = numToMonth(bb);
       return mon ? `${aa} ${mon} ${yy}` : _match;
     } else if (bb > 12 && aIsMonth) {
       // mm-dd-yyyy
+      if (!dayFits(bb, aa)) return `${yy}`;
       const mon = numToMonth(aa);
       return mon ? `${bb} ${mon} ${yy}` : _match;
     } else if (aIsMonth && bIsDay && aa === bb) {
@@ -604,6 +619,10 @@ function parseDateTokens(tokens: Token[], startIdx: number, endIdx: number): Dat
       }
     }
   }
+
+  // A day the month does not have, with the month printed as a word (`31 Nov. 1706`): the month is
+  // sure and the day is the likely misreading, so the month and the year are kept.
+  if (parts.day && parts.month && !dayFits(parts.day, MONTH_NUM.get(parts.month) ?? 0)) parts.day = undefined;
 
   return parts;
 }
