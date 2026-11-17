@@ -59,6 +59,27 @@ const ROMAN_MONTH = ROMAN_MONTHS.join('|');
 const ROMAN_MONTH_DAY_FIRST = new RegExp(String.raw`(?<!\d)(\d{1,2})${ALL_NUMBER_GAP}(${ROMAN_MONTH})${ALL_NUMBER_GAP}(\d{4})(?!\d)`, 'gi');
 const ROMAN_MONTH_YEAR_FIRST = new RegExp(String.raw`(?<!\d)(\d{4})${ALL_NUMBER_GAP}(${ROMAN_MONTH})${ALL_NUMBER_GAP}(\d{1,2})(?!\d)`, 'gi');
 
+// One number before a year, with only a separator between them (`11/1922`, `5 1963`, `4th 1864`,
+// `22d 1805`). A number right after a separator stands beside a blank (`/07/1879`), so it is not read.
+// The ordinals a day may carry, with the books' older `22d` for 22nd.
+const DAY_ORDINALS = [...ORDINAL_SUFFIXES, 'd'];
+const MONTH_AND_YEAR = new RegExp(
+  String.raw`(?<![/.\-])(\d{1,2})(${DAY_ORDINALS.join('|')})?${ALL_NUMBER_GAP}(\d{4})`, 'gi');
+
+// A number from 1 to 12 alone before a year is the month (`5 1963` is May 1963). Over 12, or with an
+// ordinal (`22. 1911`, `4th 1864`), it is a day with no month, so only the year is sure. ALONE: the rest
+// of the date holds no other number and no word but a qualifier (`abt 5 1850`). Beside a month it does
+// not know (`Febuary 4, 1951`), a Quaker `mo` (`1 mo. 12, 1739`) or another number (`13 13 1850`), the
+// number is something else, and reading it as the month would give a wrong month that looks right.
+function monthAndYear(match: string, n: string, ordinal: string | undefined, y: string, offset: number, whole: string): string {
+  const nn = parseInt(n, 10);
+  const rest = `${whole.slice(0, offset)} ${whole.slice(offset + match.length)}`;
+  const alone = !/\d/.test(rest) && tokenize(normalizeAccents(rest)).every((t) => t.type !== 'str' || MODIFIERS.has(t.value.toLowerCase()));
+  if (!alone) return match;
+  const mon = !ordinal && nn >= 1 && nn <= 12 ? numToMonth(nn) : undefined;
+  return mon ? `${mon} ${y}` : y;
+}
+
 // The month a Roman numeral names, as the number `iso` reads.
 function romanMonth(numeral: string): string {
   return String(ROMAN_MONTHS.indexOf(numeral.toLowerCase()) + 1);
@@ -241,7 +262,8 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   // An all-number date with separators the two patterns above do not read: a space beside a separator
   // or in place of one (`17. 11. 1960`, `23 8 1924`, `2- 8-1875`, `1772, 9, 30`), or a comma, a bar or
   // a middle dot (`7, 17, 1913`, `24 | 6 | 1754`, `24·1·1889`); and a month written as a Roman numeral
-  // (`19.vi.1697`, `1737 II.17.`). Read by the same two readers, but only where no month is named:
+  // (`19.vi.1697`, `1737 II.17.`); and one number before a year (`11/1922`). Read by the same two
+  // readers, and the last as the month or not at all, but only where no month is named:
   // beside a month name, two of the numbers are a day and something else (`Nov 9 9. 1722`,
   // `29 Jan 1734-5 1735`, `Jan 5/6 1785`), so those are left as they were.
   const monthNamed = tokenize(normalizeAccents(text)).some((t) => t.type === 'str' && MONTHS.has(t.value.toLowerCase()));
@@ -250,6 +272,7 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     text = text.replace(ROMAN_MONTH_YEAR_FIRST, (_match: string, y: string, r: string, d: string) => iso(_match, y, romanMonth(r), d));
     text = text.replace(ROMAN_MONTH_DAY_FIRST, (_match: string, d: string, r: string, y: string) => iso(_match, y, romanMonth(r), d));
     text = text.replace(SPACED_ALL_NUMBER, ambiguous);
+    text = text.replace(MONTH_AND_YEAR, monthAndYear);
   }
 
   // Convert dd-Mon-yyyy (dashes between day/month/year with alpha month) → spaces

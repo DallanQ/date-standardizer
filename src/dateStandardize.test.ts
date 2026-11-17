@@ -602,6 +602,34 @@ describe('stdDate', () => {
     });
   });
 
+  describe('one number before a year', () => {
+    test('from 1 to 12, it is the month', () => {
+      expect(stdDate('11/1922')).toBe('Nov 1922');
+      expect(stdDate('8-1961')).toBe('Aug 1961');
+      expect(stdDate('5 1963')).toBe('May 1963');
+    });
+    test('over 12, or with an ordinal, it is a day with no month, so only the year is sure', () => {
+      expect(stdDate('22. 1911')).toBe('1911');
+      expect(stdDate('20, 1845')).toBe('1845');
+      expect(stdDate('4th 1864')).toBe('1864');
+      expect(stdDate('22d 1805')).toBe('1805');
+    });
+    test('not where a month is named, or with a word between it and the year', () => {
+      expect(stdDate('Jan 5 1963')).toBe('5 Jan 1963');
+      expect(stdDate('7 mo 1735')).toBe('7 1735');
+    });
+    test('not a number beside a blank for the day or month', () => {
+      expect(stdDate('/07/1879')).not.toContain('Jul');
+    });
+    test('only alone: not beside another number or a word it does not know', () => {
+      expect(stdDate('13 13 1850')).toBe('1850');
+      expect(stdDate('Febuary 4, 1951')).not.toContain('Apr');
+      expect(stdDate('1 mo. 12, 1739')).not.toContain('Dec');
+    });
+    test('beside a qualifier', () => {
+      expect(stdDate('abt 5 1850')).toBe('Abt May 1850');
+    });
+  });
 
   describe('double-dating (split years)', () => {
     test('basic', () => {
