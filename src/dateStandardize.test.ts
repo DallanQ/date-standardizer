@@ -572,6 +572,37 @@ describe('stdDate', () => {
     });
   });
 
+  describe('a year written first', () => {
+    test('is followed by the month, then the day, whatever separates them', () => {
+      expect(stdDate('1772, 9, 30')).toBe('30 Sep 1772');
+      expect(stdDate('1761 11/26')).toBe('26 Nov 1761');
+      expect(stdDate('1786,5,20')).toBe('20 May 1786');
+      expect(stdDate('1843 11 9')).toBe('9 Nov 1843');
+    });
+    test('never starting or ending inside a longer number, so no month is made from part of one', () => {
+      expect(stdDate('11772, 9, 30')).not.toContain('Sep');
+      expect(stdDate('1850, 12, 1851')).toContain('1851');
+    });
+  });
+
+  describe('a month written as a Roman numeral', () => {
+    test('after a year', () => {
+      expect(stdDate('1737 II.17.')).toBe('17 Feb 1737');
+      expect(stdDate('1815 VI.3.')).toBe('3 Jun 1815');
+    });
+    test('between a day and a year, in either case', () => {
+      expect(stdDate('19.vi.1697')).toBe('19 Jun 1697');
+      expect(stdDate('12-X-1917')).toBe('12 Oct 1917');
+      expect(stdDate('23.x.1737')).toBe('23 Oct 1737');
+      expect(stdDate('6.xii.1703')).toBe('6 Dec 1703');
+    });
+    test('never starting inside a longer number', () => {
+      expect(stdDate('119.vi.1697')).not.toContain('Jun');
+      expect(stdDate('21737 II.17.')).not.toContain('Feb');
+    });
+  });
+
+
   describe('double-dating (split years)', () => {
     test('basic', () => {
       expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');

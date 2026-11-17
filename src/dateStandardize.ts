@@ -50,6 +50,19 @@ interface DateParts {
 // number right after a digit is inside a longer one (`123 4 1850`), so a date does not start there.
 const ALL_NUMBER_GAP = String.raw`(?:\s*[/.\-,|·]\s*|\s+)`;
 const SPACED_ALL_NUMBER = new RegExp(String.raw`(?<!\d)(\d{1,2})${ALL_NUMBER_GAP}(\d{1,2})${ALL_NUMBER_GAP}(\d{4})`, 'g');
+// A year written first, then the month and the day, with the same separators (`1772, 9, 30`).
+const SPACED_YEAR_FIRST = new RegExp(String.raw`(?<!\d)(\d{4})${ALL_NUMBER_GAP}(\d{1,2})${ALL_NUMBER_GAP}(\d{1,2})(?!\d)`, 'g');
+// A month written as a Roman numeral, `i` to `xii` in either case, between a day and a year
+// (`19.vi.1697`) or after a year (`1737 II.17.`).
+const ROMAN_MONTHS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii'];
+const ROMAN_MONTH = ROMAN_MONTHS.join('|');
+const ROMAN_MONTH_DAY_FIRST = new RegExp(String.raw`(?<!\d)(\d{1,2})${ALL_NUMBER_GAP}(${ROMAN_MONTH})${ALL_NUMBER_GAP}(\d{4})(?!\d)`, 'gi');
+const ROMAN_MONTH_YEAR_FIRST = new RegExp(String.raw`(?<!\d)(\d{4})${ALL_NUMBER_GAP}(${ROMAN_MONTH})${ALL_NUMBER_GAP}(\d{1,2})(?!\d)`, 'gi');
+
+// The month a Roman numeral names, as the number `iso` reads.
+function romanMonth(numeral: string): string {
+  return String(ROMAN_MONTHS.indexOf(numeral.toLowerCase()) + 1);
+}
 
 // ---------- Tokenizer ----------
 function tokenize(s: string): Token[] {
@@ -159,7 +172,7 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   }
 
   // Convert yyyy-mm-dd / yyyy/mm/dd / yyyy.mm.dd embedded dates
-  text = text.replace(/(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})/g, (_match, y, m, d) => {
+  const iso = (_match: string, y: string, m: string, d: string): string => {
     const yy = parseInt(y, 10);
     const mm = parseInt(m, 10);
     const dd = parseInt(d, 10);
@@ -168,7 +181,8 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
       if (mon) return `${dd} ${mon} ${yy}`;
     }
     return _match;
-  });
+  };
+  text = text.replace(/(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})/g, iso);
 
   // Close a typewriter space in an all-number date: `7- 8-1971` reads as `7-8-1971`. Only between
   // two small numbers before a four-digit year, so a range such as `1865 - 1900` is untouched, and
@@ -224,13 +238,19 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   };
   text = text.replace(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})/g, ambiguous);
 
-  // An all-number date with separators the pattern above does not read: a space beside a separator
-  // or in place of one (`17. 11. 1960`, `23 8 1924`, `2- 8-1875`), or a comma, a bar or a middle dot
-  // (`7, 17, 1913`, `24 | 6 | 1754`, `24·1·1889`). Read the same way, but only where no month is
-  // named: beside a month name, two of the numbers are a day and something else (`Nov 9 9. 1722`,
+  // An all-number date with separators the two patterns above do not read: a space beside a separator
+  // or in place of one (`17. 11. 1960`, `23 8 1924`, `2- 8-1875`, `1772, 9, 30`), or a comma, a bar or
+  // a middle dot (`7, 17, 1913`, `24 | 6 | 1754`, `24·1·1889`); and a month written as a Roman numeral
+  // (`19.vi.1697`, `1737 II.17.`). Read by the same two readers, but only where no month is named:
+  // beside a month name, two of the numbers are a day and something else (`Nov 9 9. 1722`,
   // `29 Jan 1734-5 1735`, `Jan 5/6 1785`), so those are left as they were.
   const monthNamed = tokenize(normalizeAccents(text)).some((t) => t.type === 'str' && MONTHS.has(t.value.toLowerCase()));
-  if (!monthNamed) text = text.replace(SPACED_ALL_NUMBER, ambiguous);
+  if (!monthNamed) {
+    text = text.replace(SPACED_YEAR_FIRST, iso);
+    text = text.replace(ROMAN_MONTH_YEAR_FIRST, (_match: string, y: string, r: string, d: string) => iso(_match, y, romanMonth(r), d));
+    text = text.replace(ROMAN_MONTH_DAY_FIRST, (_match: string, d: string, r: string, y: string) => iso(_match, y, romanMonth(r), d));
+    text = text.replace(SPACED_ALL_NUMBER, ambiguous);
+  }
 
   // Convert dd-Mon-yyyy (dashes between day/month/year with alpha month) → spaces
   text = text.replace(/(\d{1,2})-([a-zA-Z]+)-(\d{4})/g, '$1 $2 $3');
