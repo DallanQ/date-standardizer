@@ -44,6 +44,13 @@ interface DateParts {
   quarter?: number;     // 1-4 for quarter dates
 }
 
+// ---------- All-number dates ----------
+// What may stand between the numbers of an all-number date, beside the plain `/`, `.` and `-`: one
+// of those or a comma, a bar or a middle dot, with a space beside it or not, or a space alone. A
+// number right after a digit is inside a longer one (`123 4 1850`), so a date does not start there.
+const ALL_NUMBER_GAP = String.raw`(?:\s*[/.\-,|·]\s*|\s+)`;
+const SPACED_ALL_NUMBER = new RegExp(String.raw`(?<!\d)(\d{1,2})${ALL_NUMBER_GAP}(\d{1,2})${ALL_NUMBER_GAP}(\d{4})`, 'g');
+
 // ---------- Tokenizer ----------
 function tokenize(s: string): Token[] {
   const tokens: Token[] = [];
@@ -181,7 +188,7 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     (_match, _sep, n, y) => blankDate(n, 'second', y, order) ?? _match);
 
   // Handle ambiguous mm-dd-yyyy / dd-mm-yyyy
-  text = text.replace(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})/g, (_match, a, b, y) => {
+  const ambiguous = (_match: string, a: string, b: string, y: string): string => {
     const aa = parseInt(a, 10);
     const bb = parseInt(b, 10);
     const yy = parseInt(y, 10);
@@ -214,7 +221,16 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
       return _match;
     }
     return _match;
-  });
+  };
+  text = text.replace(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})/g, ambiguous);
+
+  // An all-number date with separators the pattern above does not read: a space beside a separator
+  // or in place of one (`17. 11. 1960`, `23 8 1924`, `2- 8-1875`), or a comma, a bar or a middle dot
+  // (`7, 17, 1913`, `24 | 6 | 1754`, `24·1·1889`). Read the same way, but only where no month is
+  // named: beside a month name, two of the numbers are a day and something else (`Nov 9 9. 1722`,
+  // `29 Jan 1734-5 1735`, `Jan 5/6 1785`), so those are left as they were.
+  const monthNamed = tokenize(normalizeAccents(text)).some((t) => t.type === 'str' && MONTHS.has(t.value.toLowerCase()));
+  if (!monthNamed) text = text.replace(SPACED_ALL_NUMBER, ambiguous);
 
   // Convert dd-Mon-yyyy (dashes between day/month/year with alpha month) → spaces
   text = text.replace(/(\d{1,2})-([a-zA-Z]+)-(\d{4})/g, '$1 $2 $3');

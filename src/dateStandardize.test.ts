@@ -534,6 +534,44 @@ describe('stdDate', () => {
     });
   });
 
+  describe('all-number dates with other separators', () => {
+    test('a space beside a separator, or in place of one', () => {
+      expect(stdDate('17. 11. 1960')).toBe('17 Nov 1960');
+      expect(stdDate('3. 19. 1787')).toBe('19 Mar 1787');
+      expect(stdDate('23 8 1924')).toBe('23 Aug 1924');
+      expect(stdDate('29 4 1769')).toBe('29 Apr 1769');
+      expect(stdDate('1/ 1/1972')).toBe('1 Jan 1972');
+      expect(stdDate('5 28. 1736')).toBe('28 May 1736');
+      expect(stdDate('28.2. 1834')).toBe('28 Feb 1834');
+      expect(stdDate('1/13, 1936')).toBe('13 Jan 1936');
+    });
+    test('a comma, a bar or a middle dot', () => {
+      expect(stdDate('7, 17, 1913')).toBe('17 Jul 1913');
+      expect(stdDate('24 | 6 | 1754')).toBe('24 Jun 1754');
+      expect(stdDate('24·1·1889')).toBe('24 Jan 1889');
+    });
+    test('a dash with a space beside it is a separator, not a range', () => {
+      expect(stdDate('2- 8-1875')).toBe('8 Feb 1875 or 2 Aug 1875');
+      expect(stdDate('7 - 7 - 1902')).toBe('7 Jul 1902');
+      expect(stdDate('8 -18-1927')).toBe('18 Aug 1927');
+      expect(stdDate('7/24- 1859')).toBe('24 Jul 1859');
+      expect(stdDate('1- 13. 1785')).toBe('13 Jan 1785');
+    });
+    test('two numbers that can each be the month give both readings', () => {
+      expect(stdDate('1. 10 1735')).toBe('10 Jan 1735 or 1 Oct 1735');
+      expect(stdDate('9 . 10 . 1835')).toBe('10 Sep 1835 or 9 Oct 1835');
+      expect(stdDate('3/10 1861')).toBe('10 Mar 1861 or 3 Oct 1861');
+    });
+    test('never where a month is named, as its numbers are a day and something else', () => {
+      expect(stdDate('Nov 9 9. 1722')).toBe('9 Nov 1722');
+      expect(stdDate('29 Jan 1734-5 1735')).toBe('Bet 29 Jan 1734 and 1735');
+      expect(stdDate('Jan 5/6 1785')).toBe('6 Jan 1785');
+    });
+    test('never starting inside a longer number, so no day or month is made from part of one', () => {
+      expect(stdDate('123 4 1850')).toBe('1850');
+    });
+  });
+
   describe('double-dating (split years)', () => {
     test('basic', () => {
       expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');
