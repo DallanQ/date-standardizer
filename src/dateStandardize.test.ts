@@ -631,6 +631,35 @@ describe('stdDate', () => {
     });
   });
 
+  describe('a dash inside one date', () => {
+    test('between a word and a number, is a separator', () => {
+      expect(stdDate('May-5-1886')).toBe('5 May 1886');
+      expect(stdDate('Oct-26 1874')).toBe('26 Oct 1874');
+      expect(stdDate('Jan - 18, 1798')).toBe('18 Jan 1798');
+      expect(stdDate('Oct-16.1843')).toBe('16 Oct 1843');
+      expect(stdDate('24-Nov 1716')).toBe('24 Nov 1716');
+      expect(stdDate('11 Nov-1913')).toBe('11 Nov 1913');
+      expect(stdDate('ca-1896')).toBe('Abt 1896');
+      expect(stdDate('abt- 1640')).toBe('Abt 1640');
+    });
+    test("between a month's day and its year, is a separator", () => {
+      expect(stdDate('Aug 7-1834')).toBe('7 Aug 1834');
+      expect(stdDate('Apr. 30 - 1701')).toBe('30 Apr 1701');
+      expect(stdDate('April 14th-1873')).toBe('14 Apr 1873');
+      expect(stdDate('Aug, 5-1846')).toBe('5 Aug 1846');
+    });
+    test('between two days of one month, is a range with the month and the year printed once', () => {
+      expect(stdDate('Oct 16-23, 1910')).toBe('Bet 16 Oct 1910 and 23 Oct 1910');
+      expect(stdDate('April 23-27 1785')).toBe('Bet 23 Apr 1785 and 27 Apr 1785');
+    });
+    test('between two whole dates or years, stays a range', () => {
+      expect(stdDate('Jan 5-Feb 6, 1850')).toBe('Bet 5 Jan 1850 and 6 Feb 1850');
+      expect(stdDate('30 Aug - 11 Sept 1820')).toBe('Bet 30 Aug 1820 and 11 Sep 1820');
+      expect(stdDate('Apr 1756-May 1757')).toBe('Bet Apr 1756 and May 1757');
+      expect(stdDate('Bet 5 Jan 1850 and 6 1851')).toBe('Bet 5 Jan 1850 and 6 1851');
+    });
+  });
+
   describe('double-dating (split years)', () => {
     test('basic', () => {
       expect(stdDate('28 Feb 1623/24')).toBe('28 Feb 1623/24');

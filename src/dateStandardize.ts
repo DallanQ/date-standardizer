@@ -80,6 +80,28 @@ function monthAndYear(match: string, n: string, ordinal: string | undefined, y: 
   return mon ? `${mon} ${y}` : y;
 }
 
+// A dash inside one date is a separator, not a range: between a word and a number (`May-5-1886`,
+// `June—1872`, `ca-1828`), between a day and a month (`24-Nov 1716`), and between a month's day and its
+// year (`Aug 7-1834`). A word is never a whole date. A dash between two whole dates or years stays a
+// range (`Apr 1756-May 1757`), and so does one between two days (`Oct 16-23, 1910`), whose month and
+// year are printed once.
+const WORD_DASH_NUMBER = /([A-Za-z]+)(\.?)\s*-\s*(?=\d)/g;
+// A number followed by a month name is the day of the next date (`30 Aug - 11 Sept 1820`).
+const DAY_THEN_MONTH = /^\d{1,2}(?!\d)[.,]?\s*([A-Za-z]+)/;
+const NUMBER_DASH_MONTH = /(?<!\d)(\d{1,2})\s*-\s*([A-Za-z]+)/g;
+const MONTH_DAY_DASH_YEAR = new RegExp(
+  String.raw`([A-Za-z]+)([.,]?\s*\d{1,2}(?:${DAY_ORDINALS.join('|')})?)(?!\d)\s*-\s*(\d{4})(?!\d)`, 'gi');
+
+// Is this word a month name (`Aug`, `Sept`, `März`)?
+function isMonth(word: string): boolean {
+  return MONTHS.has(normalizeAccents(word).toLowerCase());
+}
+
+// Does this text name a month anywhere?
+function monthNamedIn(s: string): boolean {
+  return tokenize(normalizeAccents(s)).some((t) => t.type === 'str' && isMonth(t.value));
+}
+
 // The month a Roman numeral names, as the number `iso` reads.
 function romanMonth(numeral: string): string {
   return String(ROMAN_MONTHS.indexOf(numeral.toLowerCase()) + 1);
@@ -266,7 +288,7 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   // readers, and the last as the month or not at all, but only where no month is named:
   // beside a month name, two of the numbers are a day and something else (`Nov 9 9. 1722`,
   // `29 Jan 1734-5 1735`, `Jan 5/6 1785`), so those are left as they were.
-  const monthNamed = tokenize(normalizeAccents(text)).some((t) => t.type === 'str' && MONTHS.has(t.value.toLowerCase()));
+  const monthNamed = monthNamedIn(text);
   if (!monthNamed) {
     text = text.replace(SPACED_YEAR_FIRST, iso);
     text = text.replace(ROMAN_MONTH_YEAR_FIRST, (_match: string, y: string, r: string, d: string) => iso(_match, y, romanMonth(r), d));
@@ -277,6 +299,18 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
 
   // Convert dd-Mon-yyyy (dashes between day/month/year with alpha month) → spaces
   text = text.replace(/(\d{1,2})-([a-zA-Z]+)-(\d{4})/g, '$1 $2 $3');
+
+  // A dash inside one date is a separator (see WORD_DASH_NUMBER). A number after a word and a dash is
+  // part of the same date only where it is not the day of the next one (`30 Aug - 11 Sept 1820`); a day
+  // before a dash and a month, only where no month comes before it (`Jan 5-Feb 6, 1850`).
+  text = text.replace(WORD_DASH_NUMBER, (match: string, word: string, dot: string, offset: number, whole: string) => {
+    const next = whole.slice(offset + match.length).match(DAY_THEN_MONTH);
+    return next && isMonth(next[1]) ? match : `${word}${dot} `;
+  });
+  text = text.replace(NUMBER_DASH_MONTH, (match: string, day: string, word: string, offset: number, whole: string) =>
+    (isMonth(word) && !monthNamedIn(whole.slice(0, offset)) ? `${day} ${word}` : match));
+  text = text.replace(MONTH_DAY_DASH_YEAR, (match: string, word: string, day: string, year: string) =>
+    (isMonth(word) ? `${word}${day} ${year}` : match));
 
   // Handle abbreviated year ranges: 1875-80 → 1875-1880 (BEFORE dash processing)
   text = text.replace(/(\d{4})-(\d{1,3})(?!\d)/g, (_match, base, suffix) => {
@@ -745,6 +779,9 @@ export function stdDate(raw: string, order?: DateOrder): string {
 
 // ---------- Range gap filling ----------
 function fillRangeGaps(date1: DateParts, date2: DateParts): void {
+  // `Oct 16-23, 1910`: two days of one month, whose month is printed once, before them, and the year
+  // once, after them. The second day takes the month only then, while the first has no year of its own.
+  const yearPrintedOnce = !date1.year;
   // If date1 missing year but date2 has year, copy year
   if (!date1.year && date2.year) {
     date1.year = date2.year;
@@ -752,6 +789,9 @@ function fillRangeGaps(date1: DateParts, date2: DateParts): void {
   // If date1 missing month but date2 has month and date1 has day, copy month
   if (!date1.month && date2.month && date1.day) {
     date1.month = date2.month;
+  }
+  if (yearPrintedOnce && !date2.month && date1.month && date2.day) {
+    date2.month = date1.month;
   }
   // If date1 has a pending number (stored nowhere yet) but no day, and date1 has no month...
   // This is handled in the parser when a number is left in pendingNums
