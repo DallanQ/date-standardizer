@@ -537,6 +537,10 @@ describe('stdDate', () => {
       expect(stdDate('1499 B.C. or 1500 B.C.')).toBe('Bet 1500 BC and 1499 BC');
       expect(stdDate('Jan or Feb 52 B.C.')).toBe('Jan 52 BC or Feb 52 BC');
     });
+    test('a shortened year reads the same after a dash and after an "or"', () => {
+      expect(stdDate('1875-9')).toBe('Bet 1875 and 1879');
+      expect(stdDate('1875 or 9')).toBe('Bet 1875 and 1879');
+    });
     test('an "or" in one year: every date spelled out', () => {
       expect(stdDate('25 or 29 Jan. 1856')).toBe('25 Jan 1856 or 29 Jan 1856');
       expect(stdDate('4 or 5 June 1649')).toBe('4 Jun 1649 or 5 Jun 1649');
