@@ -725,6 +725,11 @@ function fullYear(base: number, tail: string): number {
   return Math.floor(base / p) * p + parseInt(tail, 10);
 }
 
+// A date's year as a point in time: a B.C. year counts back, so 1500 BC comes before 1499 BC.
+function yearInTime(d: DateParts): number {
+  return d.bc ? -(d.year as number) : (d.year as number);
+}
+
 // Is a `/` all that is printed between tokens i and j?
 function slashBetween(tokens: Token[], i: number, j: number): boolean {
   return j === i + 2 && tokens[i + 1].type === 'sym' && tokens[i + 1].value === '/';
@@ -898,7 +903,8 @@ function fillShared(dates: DateParts[], monthsTogether: boolean[]): void {
 // '09`); a date before or after another, which no form of two dates says; a date with no year, or a
 // day with no month; and dates that say one date (`March March 11, 1818`, `October or thereabouts
 // 1663`, and an "or" between words, `1678 or earlier`). A qualifier is dropped, as on a range: the
-// "or" already says the date is not known exactly.
+// "or" already says the date is not known exactly. A range runs from the earlier year to the later,
+// and a B.C. year counts back (`1500 B.C. or 1499 B.C.` -> `Bet 1500 BC and 1499 BC`).
 function orDate(tokens: Token[], spans: Span[], between: boolean): { text: string; uncertain: boolean } | null {
   const dates = spans.map((s) => parseDateTokens(tokens, s.start, s.end));
   for (let k = 1; k < dates.length; k++) {
@@ -921,14 +927,14 @@ function orDate(tokens: Token[], spans: Span[], between: boolean): { text: strin
   for (const d of dates) {
     d.modifier = undefined; d.uncertain = undefined;
   }
-  const years = dates.map((d) => d.year as number);
+  const years = dates.map((d) => yearInTime(d));
   const first = dates[years.indexOf(Math.min(...years))];
   const last = dates[years.indexOf(Math.max(...years))];
   if (between) {
     if (dates.length !== 2) return null;
     return { text: `Bet ${formatDate(dates[0])} and ${formatDate(dates[1])}`, uncertain };
   }
-  if (first.year !== last.year) {
+  if (yearInTime(first) !== yearInTime(last)) {
     const ends = [first, last].map((d) => formatDate({ year: d.year, splitYear: d.splitYear, bc: d.bc }));
     return { text: `Bet ${ends[0]} and ${ends[1]}`, uncertain };
   }
