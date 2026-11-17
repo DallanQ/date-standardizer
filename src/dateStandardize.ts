@@ -92,6 +92,49 @@ const NUMBER_DASH_MONTH = /(?<!\d)(\d{1,2})\s*-\s*([A-Za-z]+)/g;
 const MONTH_DAY_DASH_YEAR = new RegExp(
   String.raw`([A-Za-z]+)([.,]?\s*\d{1,2}(?:${DAY_ORDINALS.join('|')})?)(?!\d)\s*-\s*(\d{4})(?!\d)`, 'gi');
 
+// A month given by its number, as the Quakers wrote it (`3 mo.`, `5th month`, `9m`), and a year with
+// the second year the book may print after it (`1720/21`, `1747-8`).
+const QUAKER_MONTH = new RegExp(
+  String.raw`(?<!\d)(\d{1,2})(?:${DAY_ORDINALS.join('|')})?\s*[.:;]?\s*(?:month|mth|mo|m)\b\.?`, 'gi');
+const QUAKER_YEAR = /(?<!\d)(\d{4})(\s*[/-]\s*\d{1,4})?(?!\d)/g;
+// The year the English calendar began on 1 January rather than in March: a Quaker first month is
+// March before it and January from it.
+const NEW_STYLE_FROM = 1752;
+
+// `15 7 mo 1725` is 15 September 1725. The month is the number written with `mo`, `m` or `month`, and
+// the one other number, if there is one, is the day. Before 1752 the first month is March, and the
+// eleventh and twelfth are January and February of the next year, unless the book prints a second year
+// itself (`1720/21`), which is kept. Only with one such month, one year and at most one other number;
+// anything else is left as it was. A book that also names the month (`4th month Called June 1716`)
+// names the same one, and the day it would otherwise hide is read.
+function quakerDate(text: string): string {
+  const months = [...text.matchAll(QUAKER_MONTH)];
+  const years = [...text.matchAll(QUAKER_YEAR)];
+  if (months.length !== 1 || years.length !== 1) return text;
+  const [mo, yr] = [months[0], years[0]];
+  const q = parseInt(mo[1], 10);
+  const y = parseInt(yr[1], 10);
+  if (q < 1 || q > 12 || y < 1000 || y > 2200) return text;
+  const inside = (i: number, m: RegExpMatchArray): boolean => i >= (m.index ?? 0) && i < (m.index ?? 0) + m[0].length;
+  const others = [...text.matchAll(/\d+/g)].filter((n) => !inside(n.index ?? 0, mo) && !inside(n.index ?? 0, yr));
+  if (others.length > 1) return text;
+  const oldStyle = y < NEW_STYLE_FROM;
+  const month = oldStyle ? (q + 1) % 12 + 1 : q;
+  const year = oldStyle && q >= 11 && !yr[2] ? `${y + 1}` : yr[0];
+  const parts: [number, number, string][] = [
+    [mo.index ?? 0, (mo.index ?? 0) + mo[0].length, ` ${numToMonth(month)} `],
+    [yr.index ?? 0, (yr.index ?? 0) + yr[0].length, year],
+  ];
+  parts.sort((a, b) => a[0] - b[0]);
+  let out = '';
+  let pos = 0;
+  for (const [start, end, replacement] of parts) {
+    out += text.slice(pos, start) + replacement;
+    pos = end;
+  }
+  return out + text.slice(pos);
+}
+
 // Is this word a month name (`Aug`, `Sept`, `März`)?
 function isMonth(word: string): boolean {
   return MONTHS.has(normalizeAccents(word).toLowerCase());
@@ -213,6 +256,9 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
       }
     }
   }
+
+  // A Quaker numbered month (`15 7 mo 1725`), before anything else reads its numbers.
+  text = quakerDate(text);
 
   // Convert yyyy-mm-dd / yyyy/mm/dd / yyyy.mm.dd embedded dates
   const iso = (_match: string, y: string, m: string, d: string): string => {

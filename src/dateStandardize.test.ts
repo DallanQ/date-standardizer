@@ -616,7 +616,7 @@ describe('stdDate', () => {
     });
     test('not where a month is named, or with a word between it and the year', () => {
       expect(stdDate('Jan 5 1963')).toBe('5 Jan 1963');
-      expect(stdDate('7 mo 1735')).toBe('7 1735');
+      expect(stdDate('7 mo 1735')).not.toContain('Jul');
     });
     test('not a number beside a blank for the day or month', () => {
       expect(stdDate('/07/1879')).not.toContain('Jul');
@@ -699,6 +699,40 @@ describe('stdDate', () => {
       expect(stdDate('23.d febury 1829')).toBe('23 Feb 1829');
       expect(stdDate('Decemʳ. 13, 1793')).toBe('13 Dec 1793');
       expect(stdDate('Apl-29, 1894')).toBe('29 Apr 1894');
+    });
+  });
+
+  describe('Quaker numbered months', () => {
+    test('from 1752 the first month is January', () => {
+      expect(stdDate('14, 3 mo., 1819')).toBe('14 Mar 1819');
+      expect(stdDate('14th, 6 mo. 1758')).toBe('14 Jun 1758');
+      expect(stdDate('18th 9m 1842')).toBe('18 Sep 1842');
+      expect(stdDate('12th of 8th month 1833')).toBe('12 Aug 1833');
+      expect(stdDate('10 mo. 1811')).toBe('Oct 1811');
+      expect(stdDate('21-11mo-1804')).toBe('21 Nov 1804');
+    });
+    test('before 1752 the first month is March, and the eleventh and twelfth fall in the next year', () => {
+      expect(stdDate('3m 18d 1739')).toBe('18 May 1739');
+      expect(stdDate('3 2mo 1661')).toBe('3 Apr 1661');
+      expect(stdDate('11 mo 31st 1734')).toBe('31 Jan 1735');
+      expect(stdDate('15 7 mo 1725')).toBe('15 Sep 1725');
+      expect(stdDate('8 mo. 13, 1692')).toBe('13 Oct 1692');
+      expect(stdDate('10d:6m:1673')).toBe('10 Aug 1673');
+      expect(stdDate('9th day of ye 10th month 1708')).toBe('9 Dec 1708');
+      expect(stdDate('7 mo 1735')).toBe('Sep 1735');
+      expect(stdDate('08d02m 1687')).toBe('8 Apr 1687');
+    });
+    test('a double year the book prints is kept, and the year is not moved on again', () => {
+      expect(stdDate('16 11 mo 1720/21')).toBe('16 Jan 1720/21');
+    });
+    test('beside the month the book names, which is the same one', () => {
+      expect(stdDate('4 mo. (June) 23, 1708')).toBe('23 Jun 1708');
+      expect(stdDate('20th day of ye 4th month Called June 1716')).toBe('20 Jun 1716');
+    });
+    test('not with two months, two years or two other numbers', () => {
+      expect(stdDate('9m the 10:m 1661')).toBe('1661');
+      expect(stdDate('22 7 mo 1693 or 28 7 mo 1698')).not.toContain('Sep');
+      expect(stdDate('12th Dy of the 5th mo and 3d Dy of the week the year 1715')).not.toContain('Jul');
     });
   });
 
