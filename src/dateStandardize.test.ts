@@ -766,6 +766,24 @@ describe('stdDate', () => {
     });
   });
 
+  describe('part of a year', () => {
+    test('a missing last digit is a decade', () => {
+      expect(stdDate('186-')).toBe('Bet 1860 and 1869');
+      expect(stdDate('186_')).toBe('Bet 1860 and 1869');
+      expect(stdDate('186')).toBe('Bet 1860 and 1869');
+      expect(stdDate('190?-')).toBe('Bet 1900 and 1909');
+      expect(stdDate('ca 170-')).toBe('Bet 1700 and 1709');
+    });
+    test('two missing digits are a century', () => {
+      expect(stdDate('19__')).toBe('Bet 1900 and 1999');
+      expect(stdDate('18--')).toBe('Bet 1800 and 1899');
+      expect(stdDate('15??')).toBe('Bet 1500 and 1599');
+    });
+    test('not three digits that cannot start a year, nor a part of a year beside a day and a month', () => {
+      expect(stdDate('943')).toBe('');
+      expect(stdDate('7 OCT 184')).not.toContain('Bet');
+    });
+  });
 
   describe('double-dating (split years)', () => {
     test('basic', () => {

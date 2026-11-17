@@ -141,6 +141,24 @@ function quakerDate(text: string): string {
   return out + text.slice(pos);
 }
 
+// Part of a year: a missing last digit is a decade (`186-`, `186_`, `186`, `190?-`), and two missing
+// digits a century (`19__`, `18--`). Only where the cell is that and nothing else, or an approximation
+// and it, which a range drops anyway (`ca 170-`).
+const DECADE = /^\s*(?:([A-Za-z]+)\.?\s+)?(\d{3})(?:\s*[-_?])*\s*$/;
+const CENTURY = /^\s*(?:([A-Za-z]+)\.?\s+)?(\d{2})(?:\s*[-_?]){2,}\s*$/;
+
+function partOfAYear(text: string): string | undefined {
+  for (const [rx, span] of [[DECADE, 10], [CENTURY, 100]] as const) {
+    const m = text.match(rx);
+    if (!m) continue;
+    if (m[1] && !APPROXIMATIONS.has(MODIFIERS.get(m[1].toLowerCase()) ?? '')) return undefined;
+    const first = parseInt(m[2], 10) * span;
+    const last = first + span - 1;
+    return first >= 1000 && last <= 2200 ? `${first}-${last}` : undefined;
+  }
+  return undefined;
+}
+
 // Can this month (1-12) have this day? February is given 29: a leap year is always possible.
 function dayFits(day: number, month: number): boolean {
   return day >= 1 && day <= DAYS_IN_MONTH[month];
@@ -246,6 +264,9 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
     text = parenMatch[1].trim();
     trailingParen = parenMatch[2];
   }
+
+  // Part of a year, before the question mark is read: a `?` there is a missing digit (`190?-`).
+  text = partOfAYear(text) ?? text;
 
   // Handle question mark
   if (text.includes('?')) {
