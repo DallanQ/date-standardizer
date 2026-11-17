@@ -89,6 +89,18 @@ export const MONTHS: Map<string, string> = new Map([
   ['sentyabr', 'Sep'], ['oktyabr', 'Oct'], ['noyabr', 'Nov'], ['dekabr', 'Dec'],
 ]);
 
+/**
+ * The two-letter codes some registers print for a month (`1848 DE 27`, `Mr 15, 1867`, `8 Ap. 1873`).
+ * Not in MONTHS, because they are read only where the text names no other month: beside a month
+ * name, `de` is the Spanish "of" (`29 de octubre de 1877`). Left out: `no`, which the books print as
+ * the word (`no date`, `No issue`), `ma`, which is March or May, and `ju`, which is June or July.
+ */
+export const TWO_LETTER_MONTHS: Map<string, string> = new Map([
+  ['ja', 'Jan'], ['fe', 'Feb'], ['mr', 'Mar'], ['ap', 'Apr'], ['my', 'May'], ['je', 'Jun'],
+  ['jy', 'Jul'], ['jl', 'Jul'], ['ag', 'Aug'], ['au', 'Aug'], ['se', 'Sep'], ['sp', 'Sep'],
+  ['oc', 'Oct'], ['de', 'Dec'],
+]);
+
 /** Maps 3-letter abbreviations to month numbers (1-12) */
 export const MONTH_NUM: Map<string, number> = new Map([
   ['Jan', 1], ['Feb', 2], ['Mar', 3], ['Apr', 4], ['May', 5], ['Jun', 6],

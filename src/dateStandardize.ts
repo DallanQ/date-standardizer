@@ -5,6 +5,7 @@
 import {
   normalizeAccents,
   MONTHS,
+  TWO_LETTER_MONTHS,
   MONTH_NUM,
   DAYS_IN_MONTH,
   MODIFIERS,
@@ -173,6 +174,10 @@ function isMonth(word: string): boolean {
 function monthNamedIn(s: string): boolean {
   return tokenize(normalizeAccents(s)).some((t) => t.type === 'str' && isMonth(t.value));
 }
+
+// A month's two-letter code (see TWO_LETTER_MONTHS) standing alone as a word.
+const TWO_LETTER_MONTH = new RegExp(
+  String.raw`(?<![A-Za-z0-9])(${[...TWO_LETTER_MONTHS.keys()].join('|')})(?![A-Za-z0-9])`, 'gi');
 
 // The month a Roman numeral names, as the number `iso` reads.
 function romanMonth(numeral: string): string {
@@ -369,8 +374,14 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   // (`19.vi.1697`, `1737 II.17.`); and one number before a year (`11/1922`). Read by the same two
   // readers, and the last as the month or not at all, but only where no month is named:
   // beside a month name, two of the numbers are a day and something else (`Nov 9 9. 1722`,
-  // `29 Jan 1734-5 1735`, `Jan 5/6 1785`), so those are left as they were.
-  const monthNamed = monthNamedIn(text);
+  // `29 Jan 1734-5 1735`, `Jan 5/6 1785`), so those are left as they were. A month written as a two-letter
+  // code (`1848 DE 27`) is read first, and only here, where no other month is named.
+  let monthNamed = monthNamedIn(text);
+  if (!monthNamed) {
+    const before = text;
+    text = text.replace(TWO_LETTER_MONTH, (code: string) => TWO_LETTER_MONTHS.get(code.toLowerCase()) as string);
+    monthNamed = text !== before;
+  }
   if (!monthNamed) {
     text = text.replace(SPACED_YEAR_FIRST, iso);
     text = text.replace(ROMAN_MONTH_YEAR_FIRST, (_match: string, y: string, r: string, d: string) => iso(_match, y, romanMonth(r), d));

@@ -702,6 +702,55 @@ describe('stdDate', () => {
     });
   });
 
+  describe('two-letter month codes', () => {
+    test('each code is read as its month', () => {
+      expect(stdDate('5 Ja 1780')).toBe('5 Jan 1780');
+      expect(stdDate('5 Fe 1780')).toBe('5 Feb 1780');
+      expect(stdDate('5 Mr 1780')).toBe('5 Mar 1780');
+      expect(stdDate('5 Ap 1780')).toBe('5 Apr 1780');
+      expect(stdDate('5 My 1780')).toBe('5 May 1780');
+      expect(stdDate('5 Je 1780')).toBe('5 Jun 1780');
+      expect(stdDate('5 Jy 1780')).toBe('5 Jul 1780');
+      expect(stdDate('5 Jl 1780')).toBe('5 Jul 1780');
+      expect(stdDate('5 Ag 1780')).toBe('5 Aug 1780');
+      expect(stdDate('5 Au 1780')).toBe('5 Aug 1780');
+      expect(stdDate('5 Se 1780')).toBe('5 Sep 1780');
+      expect(stdDate('5 Sp 1780')).toBe('5 Sep 1780');
+      expect(stdDate('5 Oc 1780')).toBe('5 Oct 1780');
+      expect(stdDate('5 De 1780')).toBe('5 Dec 1780');
+    });
+    test('as the books print them', () => {
+      expect(stdDate('8 Ap. 1873')).toBe('8 Apr 1873');
+      expect(stdDate('1689 Ap 10')).toBe('10 Apr 1689');
+      expect(stdDate('ap 24, 1897')).toBe('24 Apr 1897');
+      expect(stdDate('Jl. 12, 1725')).toBe('12 Jul 1725');
+      expect(stdDate('Mr 30, 1878')).toBe('30 Mar 1878');
+      expect(stdDate('12 De. 1773')).toBe('12 Dec 1773');
+      expect(stdDate('1848 DE 27')).toBe('27 Dec 1848');
+      expect(stdDate('Je 15, 1892')).toBe('15 Jun 1892');
+      expect(stdDate('1821 JY 5')).toBe('5 Jul 1821');
+      expect(stdDate('Se .12,1773')).toBe('12 Sep 1773');
+    });
+    test('only where no other month is named, and only as a whole word', () => {
+      expect(stdDate('29 de octubre de 1877')).toBe('29 Oct 1877');
+      expect(stdDate('3 de junio de 1850')).toBe('3 Jun 1850');
+      expect(stdDate('OC1834')).toBe('1834');
+      expect(stdDate('License 17. 11. 1960')).toBe('17 Nov 1960');
+      expect(stdDate('14DE, JUNU 1882')).not.toContain('Dec');
+    });
+    test('a code is a month named, as its month would be', () => {
+      expect(stdDate('De 9 9. 1722')).toBe('9 Dec 1722');
+    });
+    test('no, ma and ju are not read as a month', () => {
+      expect(stdDate('No 13 1651')).not.toContain('Nov');
+      expect(stdDate('no later than 1657')).not.toContain('Nov');
+      expect(stdDate('6 Ma 1846')).not.toContain('Mar');
+      expect(stdDate('6 Ma 1846')).not.toContain('May');
+      expect(stdDate('19 Ju 1850')).not.toContain('Jun');
+      expect(stdDate('19 Ju 1850')).not.toContain('Jul');
+    });
+  });
+
   describe('Quaker numbered months', () => {
     test('from 1752 the first month is January', () => {
       expect(stdDate('14, 3 mo., 1819')).toBe('14 Mar 1819');
