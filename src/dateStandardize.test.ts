@@ -491,6 +491,12 @@ describe('stdDate', () => {
       expect(stdDate('W.D. will made Nov. 1856')).toBe('Nov 1856');
       expect(stdDate('asdf Apr. 22, 1748')).toBe('22 Apr 1748');
     });
+    test('inside or after the date, beside an all-number date, and with no month named', () => {
+      expect(stdDate('24th of November, 1672')).toBe('24 Nov 1672');
+      expect(stdDate('20 Oct 1877 NS')).toBe('20 Oct 1877');
+      expect(stdDate('w.d. 03/25/1967')).toBe('25 Mar 1967');
+      expect(stdDate('w.d. 1668')).toBe('1668');
+    });
   });
 
   describe('ranges', () => {
