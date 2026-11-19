@@ -730,9 +730,9 @@ function fullYear(base: number, tail: string): number {
 // 1848, `1899 or 0` is 1900). Two as near keep `fullYear`'s (`1840 or 5` is 1845). A dash range keeps
 // `fullYear`'s reading.
 function nearestYear(base: number, tail: string): number {
-  const p = Math.pow(10, tail.length);
+  const step = Math.pow(10, tail.length);
   const same = fullYear(base, tail);
-  return [same - p, same + p].reduce((best, y) => (Math.abs(y - base) < Math.abs(best - base) ? y : best), same);
+  return [same - step, same + step].reduce((best, y) => (Math.abs(y - base) < Math.abs(best - base) ? y : best), same);
 }
 
 // A date's year as a point in time: a B.C. year counts back, so 1500 BC comes before 1499 BC.
