@@ -541,6 +541,13 @@ describe('stdDate', () => {
       expect(stdDate('1875-9')).toBe('Bet 1875 and 1879');
       expect(stdDate('1875 or 9')).toBe('Bet 1875 and 1879');
     });
+    test('a shortened year after an "or" is the nearest year ending in its digits', () => {
+      expect(stdDate('1899 or 0')).toBe('Bet 1899 and 1900');
+      expect(stdDate('1799 or 0')).toBe('Bet 1799 and 1800');
+      expect(stdDate('1899 or 00')).toBe('Bet 1899 and 1900');
+      expect(stdDate('1999 or 00')).toBe('Bet 1999 and 2000');
+      expect(stdDate('1840 or 5')).toBe('Bet 1840 and 1845');
+    });
     test('an "or" in one year: every date spelled out', () => {
       expect(stdDate('25 or 29 Jan. 1856')).toBe('25 Jan 1856 or 29 Jan 1856');
       expect(stdDate('4 or 5 June 1649')).toBe('4 Jun 1649 or 5 Jun 1649');

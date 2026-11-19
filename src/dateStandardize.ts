@@ -725,6 +725,16 @@ function fullYear(base: number, tail: string): number {
   return Math.floor(base / p) * p + parseInt(tail, 10);
 }
 
+// The year a book shortened after an "or": the nearest one that ends in the printed digits, because an
+// "or" names the year beside the one it follows, across a decade or a century too (`1849 or 8` is
+// 1848, `1899 or 0` is 1900). Two as near keep `fullYear`'s (`1840 or 5` is 1845). A dash range keeps
+// `fullYear`'s reading.
+function nearestYear(base: number, tail: string): number {
+  const p = Math.pow(10, tail.length);
+  const same = fullYear(base, tail);
+  return [same - p, same + p].reduce((best, y) => (Math.abs(y - base) < Math.abs(best - base) ? y : best), same);
+}
+
 // A date's year as a point in time: a B.C. year counts back, so 1500 BC comes before 1499 BC.
 function yearInTime(d: DateParts): number {
   return d.bc ? -(d.year as number) : (d.year as number);
@@ -895,7 +905,7 @@ function fillShared(dates: DateParts[], monthsTogether: boolean[]): void {
 // -> `Bet 1678 and 1679`), and dates in one year with every one spelled out (`25 or 29 Jan. 1856` ->
 // `25 Jan 1856 or 29 Jan 1856`). Where the cell prints `bet` or `and` (`bet. Sept. 22, Oct. 15,
 // 1712`), its two dates are a range's ends. A number alone after an "or" that follows a year is that
-// year shortened (`1849 or 50`, `1849 or 8`).
+// year shortened, to the nearest year ending in its digits (`1849 or 50`, `1849 or 8`, `1899 or 0`).
 //
 // Returns null where the cell does not read as two dates and is read as one, as before: a number left
 // over, among dates printed side by side with no "or" (`(38 in 1880) 1842` is an age and a year) or in
@@ -911,7 +921,7 @@ function orDate(tokens: Token[], spans: Span[], between: boolean): { text: strin
     const { start, end, afterOr } = spans[k];
     const tail = afterOr && end - start === 1 && tokens[start].type === 'num' ? tokens[start].value : undefined;
     const before = dates[k - 1].year;
-    const full = tail !== undefined && before !== undefined ? fullYear(before, tail) : undefined;
+    const full = tail !== undefined && before !== undefined ? nearestYear(before, tail) : undefined;
     if (full !== undefined && full >= 1000 && full <= 2200) dates[k] = { year: full };
   }
   const printedOr = spans.some((s) => s.afterOr);
