@@ -6,6 +6,7 @@ import {
   normalizeAccents,
   MONTHS,
   MONTH_NUM,
+  DAYS_IN_MONTH,
   MODIFIERS,
   QUARTER_WORDS,
   UNKNOWN_PHRASES,
@@ -222,12 +223,9 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
   // Handle abbreviated year ranges: 1875-80 → 1875-1880 (BEFORE dash processing)
   text = text.replace(/(\d{4})-(\d{1,3})(?!\d)/g, (_match, base, suffix) => {
     const baseYear = parseInt(base, 10);
-    const suffixNum = parseInt(suffix, 10);
     if (baseYear >= 1000 && baseYear <= 2200 && suffix.length < 4) {
       // Check it's not already a full year range converted above
-      const suffixLen = suffix.length;
-      const expanded = Math.floor(baseYear / Math.pow(10, suffixLen)) * Math.pow(10, suffixLen) + suffixNum;
-      return `${base}-${expanded}`;
+      return `${base}-${fullYear(baseYear, suffix)}`;
     }
     return _match;
   });
@@ -247,6 +245,12 @@ function preProcess(raw: string, order?: DateOrder): { text: string; trailingPar
       // Only convert dashes that are surrounded by spaces or date-like content
       text = 'from ' + text.replace(/-/g, ' to ');
     }
+  }
+
+  // A printed "or" beside the two readings of an all-number date makes an "or" date of its own, and
+  // the readings are two of its dates (`1-9-1816 or 1819`).
+  if (text.includes('__OR__') && tokenize(text.replace(TWO_READINGS, ' ')).some(isOrToken)) {
+    text = text.replace(TWO_READINGS, ' $1 or $2 ');
   }
 
   return { text: text.trim(), trailingParen, uncertain, orDates };
@@ -647,6 +651,18 @@ export function stdDate(raw: string, order?: DateOrder): string {
     return result;
   }
 
+  // Two or more dates in one cell: an "or" date
+  const spans = dateSpans(allTokens, 0, allTokens.length);
+  if (spans.length > 1) {
+    const read = orDate(allTokens, spans, betPositions.length > 0 || andPositions.length > 0);
+    if (read) {
+      let result = read.text;
+      if (trailingParen) result += ' ' + trailingParen;
+      if (read.uncertain || uncertain) result += ' (?)';
+      return result;
+    }
+  }
+
   // Single date parse
   const date = parseDateTokens(allTokens, 0, allTokens.length);
 
@@ -696,4 +712,241 @@ function fillRangeGaps(date1: DateParts, date2: DateParts): void {
   }
   // If date1 has a pending number (stored nowhere yet) but no day, and date1 has no month...
   // This is handled in the parser when a number is left in pendingNums
+}
+
+// ---------- Two dates in one cell: an "or" date ----------
+// The two readings of an all-number date, as preProcess marks them (`__OR__a__OR__b__OR__`).
+const TWO_READINGS = /__OR__(.*?)__OR__(.*?)__OR__/g;
+
+// A year the book shortened to its last digits, after one it printed whole: `1875` and `80` give
+// 1880, `1849` and `8` give 1848. Read in a dash range (`1875-80`) and an "or" date (`1849 or 50`).
+function fullYear(base: number, tail: string): number {
+  const p = Math.pow(10, tail.length);
+  return Math.floor(base / p) * p + parseInt(tail, 10);
+}
+
+// The year a book shortened after an "or": the nearest one that ends in the printed digits, because an
+// "or" names the year beside the one it follows, across a decade or a century too (`1849 or 8` is
+// 1848, `1899 or 0` is 1900). Two as near keep `fullYear`'s (`1840 or 5` is 1845). A dash range keeps
+// `fullYear`'s reading.
+function nearestYear(base: number, tail: string): number {
+  const step = Math.pow(10, tail.length);
+  const same = fullYear(base, tail);
+  return [same - step, same + step].reduce((best, y) => (Math.abs(y - base) < Math.abs(best - base) ? y : best), same);
+}
+
+// A date's year as a point in time: a B.C. year counts back, so 1500 BC comes before 1499 BC.
+function yearInTime(d: DateParts): number {
+  return d.bc ? -(d.year as number) : (d.year as number);
+}
+
+// Is a `/` all that is printed between tokens i and j?
+function slashBetween(tokens: Token[], i: number, j: number): boolean {
+  return j === i + 2 && tokens[i + 1].type === 'sym' && tokens[i + 1].value === '/';
+}
+
+// Are tokens i and j printed side by side: next to each other, or with only a `/` between?
+function sideBySide(tokens: Token[], i: number, j: number): boolean {
+  return j === i + 1 || slashBetween(tokens, i, j);
+}
+
+// Are the numbers at tokens i and j two days printed side by side (`23/24`, `13 15`)? Not when only a
+// space is between them and together they make one day, which may be a day the scanner split in two
+// (`3 1 MAR 1969` is 31 March).
+function twoDays(tokens: Token[], i: number, j: number): boolean {
+  if (slashBetween(tokens, i, j)) return true;
+  return j === i + 1 && parseInt(tokens[i].value + tokens[j].value, 10) > 31;
+}
+
+// Is the token a month's name, as the parser reads one?
+function isMonthToken(tok: Token): boolean {
+  return tok.type === 'str' && MONTHS.has(normalizeAccents(tok.value).toLowerCase());
+}
+
+// Is the token a printed "or"?
+function isOrToken(tok: Token): boolean {
+  return tok.type === 'str' && MODIFIERS.get(tok.value.toLowerCase()) === 'or';
+}
+
+// Is the first number or month tokens[start..end) prints (with `last`, the last one) a month?
+function monthAtEdge(tokens: Token[], start: number, end: number, last: boolean): boolean {
+  const span = tokens.slice(start, end);
+  for (const t of last ? span.reverse() : span) {
+    if (t.type === 'num' || isMonthToken(t)) return t.type !== 'num';
+  }
+  return false;
+}
+
+// Did the parser read every number tokens[start..end) prints, as the date's day, year or the second
+// half of a double year? `(38 in 1880)` prints an age it does not.
+function readsEveryNumber(tokens: Token[], start: number, end: number, date: DateParts): boolean {
+  const numbers = tokens.slice(start, end).filter((t) => t.type === 'num').length;
+  return numbers <= [date.day, date.year, date.splitYear].filter((part) => part !== undefined).length;
+}
+
+// Do a and b say one date, the one leaving out a part the other has and agreeing on the rest
+// (`Mar 1818` and `11 Mar 1818`, `1663` and `Oct 1663`)?
+function oneDate(a: DateParts, b: DateParts): boolean {
+  return a.year === b.year && (!a.month || !b.month || a.month === b.month)
+    && (a.day === undefined || b.day === undefined || a.day === b.day);
+}
+
+// Where one date printed in the tokens begins and ends, and whether a printed "or" comes before it.
+interface Span {
+  start: number;
+  end: number;
+  afterOr: boolean;
+}
+
+// Where each date printed in tokens[start..end) begins and ends. A cell that prints one date, as
+// nearly every cell does, is one span. A new date begins:
+// - after a printed "or" (`25 or 29 Jan. 1856`). One between words (`in or before 1663`, `1760 or
+//   later`) begins a "date" with nothing of its own, which says no date but its neighbour's, so the
+//   cell is read as one date (orDate);
+// - at a second year (`abt 1820 1824`, `28 JUL 1794/1797`), but not at the next year printed beside
+//   the first, which is a double date and stays one date (`1722 1723`, `1767/1768`);
+// - at a second month, with any number before it the first month did not take as its day
+//   (`30 Oct. 1806 16 Nov 1806`, `16 Sept./Dec. 1785`, `bet. Sept. 22, Oct. 15, 1712`);
+// - at a second day printed beside the first, before their month (`13 15 Apr. 1787`, `23/24 Oct 1870`)
+//   or after it (`Jan 5/6 1785`), unless the two may be one day the scanner split (twoDays).
+// Each span is then read as a whole cell is (parseDateTokens). This only finds where the dates are;
+// it decides none of their parts.
+function dateSpans(tokens: Token[], start: number, end: number): Span[] {
+  const cuts: { at: number; afterOr: boolean }[] = [];
+  let yearAt: number | undefined;   // the token read as this date's year
+  let month = false;
+  let dayAt: number | undefined;    // the token read as this date's day
+  let loose: number[] = [];         // numbers up to 31 not yet read as a day
+
+  for (let i = start; i < end; i++) {
+    const tok = tokens[i];
+    if (tok.type === 'str') {
+      if (isOrToken(tok)) {
+        cuts.push({ at: i + 1, afterOr: true });
+        yearAt = undefined; month = false; dayAt = undefined; loose = [];
+      } else if (isMonthToken(tok)) {
+        if (month) {
+          cuts.push({ at: loose.length ? loose[0] : i, afterOr: false });
+          yearAt = undefined; dayAt = undefined;
+        }
+        month = true;
+        let run = loose.length && loose[loose.length - 1] === i - 1 ? loose.slice(-1) : [];
+        while (run.length && run.length < loose.length && twoDays(tokens, loose[loose.length - run.length - 1], run[0])) {
+          run = loose.slice(-run.length - 1);
+        }
+        for (const at of run.slice(1)) cuts.push({ at, afterOr: false });
+        if (run.length || loose.length === 1) dayAt = loose[loose.length - 1];
+        loose = [];
+      }
+      continue;
+    }
+    if (tok.type !== 'num') continue;
+    const n = parseInt(tok.value, 10);
+    if (n >= 1000 && n <= 2200) {
+      if (yearAt !== undefined && !(n === parseInt(tokens[yearAt].value, 10) + 1 && sideBySide(tokens, yearAt, i))) {
+        cuts.push({ at: loose.length ? loose[0] : i, afterOr: false });
+        month = false; dayAt = undefined;
+      }
+      if (loose.length === 1) dayAt = loose[0];
+      yearAt = i; loose = [];
+    } else if (n >= 1 && n <= 31 && !(yearAt !== undefined && slashBetween(tokens, yearAt, i))) {
+      if (month && dayAt === undefined) {
+        dayAt = i;
+      } else if (month && yearAt === undefined && dayAt !== undefined && twoDays(tokens, dayAt, i)) {
+        cuts.push({ at: i, afterOr: false });
+        month = false; dayAt = i;
+      } else {
+        loose.push(i);
+      }
+    }
+  }
+
+  const starts = [{ at: start, afterOr: false }, ...cuts];
+  return starts.map(({ at, afterOr }, k) => ({ start: at, end: k + 1 < starts.length ? starts[k + 1].at : end, afterOr }));
+}
+
+// `to` takes `src`'s day where it has none and its month can have that day.
+function shareDay(to: DateParts, src: DateParts): void {
+  if (to.day === undefined && src.day !== undefined && to.month && src.day <= DAYS_IN_MONTH[MONTH_NUM.get(to.month) ?? 0]) {
+    to.day = src.day;
+  }
+}
+
+// The dates of an "or" date printed as one share what the book printed once. A date missing its year
+// or its month takes it from the nearest date that has one, the next first (`25 or 29 Jan. 1856`,
+// `Aug 11 or 14, 1825`). Two months printed together are two months of one date, so a day printed once
+// beside them is the day of both, before them (`16 Sept./Dec. 1785`) or after them (`Feb./May 17,
+// 1672`), where the month can have it; a day printed between two months is the first month's alone
+// (`Dec 18. Apr 1763`), and a month printed beside its own year shares no day (`Sept. 1785 or 16 Oct.
+// 1785`). monthsTogether[k] says whether date k's month is printed beside the month of the date before it.
+function fillShared(dates: DateParts[], monthsTogether: boolean[]): void {
+  dates.forEach((d, k) => {
+    const nearest = [...dates.slice(k + 1), ...dates.slice(0, k).reverse()];
+    if (d.year === undefined) {
+      const src = nearest.find((x) => x.year !== undefined);
+      if (src) {
+        d.year = src.year; d.splitYear = src.splitYear; d.bc = src.bc;
+      }
+    }
+    if (d.day !== undefined && !d.month) {
+      const src = nearest.find((x) => x.month);
+      if (src) d.month = src.month;
+    }
+  });
+  for (let k = dates.length - 1; k > 0; k--) {
+    if (monthsTogether[k]) shareDay(dates[k - 1], dates[k]);
+  }
+  for (let k = 1; k < dates.length; k++) {
+    if (monthsTogether[k]) shareDay(dates[k], dates[k - 1]);
+  }
+}
+
+// Two or more dates printed in one cell: dates in two years go up as between the years (`1678 or 9`
+// -> `Bet 1678 and 1679`), and dates in one year with every one spelled out (`25 or 29 Jan. 1856` ->
+// `25 Jan 1856 or 29 Jan 1856`). Where the cell prints `bet` or `and` (`bet. Sept. 22, Oct. 15,
+// 1712`), its two dates are a range's ends. A number alone after an "or" that follows a year is that
+// year shortened, to the nearest year ending in its digits (`1849 or 50`, `1849 or 8`, `1899 or 0`).
+//
+// Returns null where the cell does not read as two dates and is read as one, as before: a number left
+// over, among dates printed side by side with no "or" (`(38 in 1880) 1842` is an age and a year) or in
+// a date that takes its year from another, where it may be that date's own year (`18 Aug 1912 or 26 Aug
+// '09`); a date before or after another, which no form of two dates says; a date with no year, or a
+// day with no month; and dates that say one date (`March March 11, 1818`, `October or thereabouts
+// 1663`, and an "or" between words, `1678 or earlier`). A qualifier is dropped, as on a range: the
+// "or" already says the date is not known exactly. A range runs from the earlier year to the later,
+// and a B.C. year counts back (`1500 B.C. or 1499 B.C.` -> `Bet 1500 BC and 1499 BC`).
+function orDate(tokens: Token[], spans: Span[], between: boolean): { text: string; uncertain: boolean } | null {
+  const dates = spans.map((s) => parseDateTokens(tokens, s.start, s.end));
+  for (let k = 1; k < dates.length; k++) {
+    const { start, end, afterOr } = spans[k];
+    const tail = afterOr && end - start === 1 && tokens[start].type === 'num' ? tokens[start].value : undefined;
+    const before = dates[k - 1].year;
+    const full = tail !== undefined && before !== undefined ? nearestYear(before, tail) : undefined;
+    if (full !== undefined && full >= 1000 && full <= 2200) dates[k] = { year: full };
+  }
+  const printedOr = spans.some((s) => s.afterOr);
+  if (!spans.every((s, k) => (printedOr && dates[k].year !== undefined) || readsEveryNumber(tokens, s.start, s.end, dates[k]))) {
+    return null;
+  }
+  if (dates.some((d) => d.modifier === 'Bef' || d.modifier === 'Aft')) return null;
+  fillShared(dates, spans.map((s, k) => k > 0 && monthAtEdge(tokens, spans[k - 1].start, spans[k - 1].end, true)
+    && monthAtEdge(tokens, s.start, s.end, false)));
+  if (dates.some((d) => d.year === undefined || (d.day !== undefined && !d.month))) return null;
+  if (dates.some((a, k) => dates.slice(k + 1).some((b) => oneDate(a, b)))) return null;
+  const uncertain = dates.some((d) => d.uncertain);
+  for (const d of dates) {
+    d.modifier = undefined; d.uncertain = undefined;
+  }
+  const years = dates.map((d) => yearInTime(d));
+  const first = dates[years.indexOf(Math.min(...years))];
+  const last = dates[years.indexOf(Math.max(...years))];
+  if (between) {
+    if (dates.length !== 2) return null;
+    return { text: `Bet ${formatDate(dates[0])} and ${formatDate(dates[1])}`, uncertain };
+  }
+  if (yearInTime(first) !== yearInTime(last)) {
+    const ends = [first, last].map((d) => formatDate({ year: d.year, splitYear: d.splitYear, bc: d.bc }));
+    return { text: `Bet ${ends[0]} and ${ends[1]}`, uncertain };
+  }
+  return { text: dates.map((d) => formatDate(d)).join(' or '), uncertain };
 }

@@ -180,6 +180,17 @@ interface DateRange {
  * Get the full day range [min, max] for a standardized date string.
  * Returns null if no year can be extracted.
  */
+/**
+ * Parse every date of an "or" date ("X or Y [or Z ...]"): undefined when the string is not one, null
+ * when one of its dates has no year.
+ */
+function parseOr(cleaned: string): ParsedDate[] | null | undefined {
+  const parts = cleaned.split(/\s+or\s+/);
+  if (parts.length < 2) return undefined;
+  const dates = parts.map((part) => parseSingle(part));
+  return dates.every((d): d is ParsedDate => d !== null) ? dates : null;
+}
+
 function getDayRange(std: string): DateRange | null {
   const cleaned = cleanInput(std);
   if (!cleaned) return null;
@@ -193,15 +204,13 @@ function getDayRange(std: string): DateRange | null {
     return { min: minDayNum(start), max: maxDayNum(end) };
   }
 
-  // Check for "or": "X or Y"
-  const orMatch = cleaned.match(/^(.+?)\s+or\s+(.+)$/);
-  if (orMatch) {
-    const a = parseSingle(orMatch[1]);
-    const b = parseSingle(orMatch[2]);
-    if (!a || !b) return null;
+  // Check for "or": "X or Y [or Z ...]"
+  const orDates = parseOr(cleaned);
+  if (orDates !== undefined) {
+    if (!orDates) return null;
     return {
-      min: Math.min(minDayNum(a), minDayNum(b)),
-      max: Math.max(maxDayNum(a), maxDayNum(b)),
+      min: Math.min(...orDates.map((p) => minDayNum(p))),
+      max: Math.max(...orDates.map((p) => maxDayNum(p))),
     };
   }
 
@@ -227,12 +236,10 @@ export function earliestYear(std: string): number | null {
   }
 
   // Check for "or": minimum earliest
-  const orMatch = cleaned.match(/^(.+?)\s+or\s+(.+)$/);
-  if (orMatch) {
-    const a = parseSingle(orMatch[1]);
-    const b = parseSingle(orMatch[2]);
-    if (!a || !b) return null;
-    return Math.min(getEarliestYear(a), getEarliestYear(b));
+  const orDates = parseOr(cleaned);
+  if (orDates !== undefined) {
+    if (!orDates) return null;
+    return Math.min(...orDates.map((p) => getEarliestYear(p)));
   }
 
   const p = parseSingle(cleaned);
@@ -256,12 +263,10 @@ export function latestYear(std: string): number | null {
   }
 
   // Check for "or": maximum latest
-  const orMatch = cleaned.match(/^(.+?)\s+or\s+(.+)$/);
-  if (orMatch) {
-    const a = parseSingle(orMatch[1]);
-    const b = parseSingle(orMatch[2]);
-    if (!a || !b) return null;
-    return Math.max(getLatestYear(a), getLatestYear(b));
+  const orDates = parseOr(cleaned);
+  if (orDates !== undefined) {
+    if (!orDates) return null;
+    return Math.max(...orDates.map((p) => getLatestYear(p)));
   }
 
   const p = parseSingle(cleaned);

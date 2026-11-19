@@ -520,6 +520,94 @@ describe('stdDate', () => {
     });
   });
 
+  describe('or dates', () => {
+    test('an "or" naming two years goes up as between them', () => {
+      expect(stdDate('1678 or 9')).toBe('Bet 1678 and 1679');
+      expect(stdDate('1842 or 3')).toBe('Bet 1842 and 1843');
+      expect(stdDate('1849 or 50')).toBe('Bet 1849 and 1850');
+      expect(stdDate("1920 or '21")).toBe('Bet 1920 and 1921');
+      expect(stdDate('1799 or 800')).toBe('Bet 1799 and 1800');
+      expect(stdDate('9 May 1849 or 8')).toBe('Bet 1848 and 1849');
+      expect(stdDate('11 Apr 1831 or 1833')).toBe('Bet 1831 and 1833');
+      expect(stdDate('1732, 1734, or 1735')).toBe('Bet 1732 and 1735');
+      expect(stdDate('about 1846 or 1847')).toBe('Bet 1846 and 1847');
+    });
+    test('a B.C. year counts back, so the earlier date opens the range', () => {
+      expect(stdDate('1500 B.C. or 1499 B.C.')).toBe('Bet 1500 BC and 1499 BC');
+      expect(stdDate('1499 B.C. or 1500 B.C.')).toBe('Bet 1500 BC and 1499 BC');
+      expect(stdDate('Jan or Feb 52 B.C.')).toBe('Jan 52 BC or Feb 52 BC');
+    });
+    test('a shortened year reads the same after a dash and after an "or"', () => {
+      expect(stdDate('1875-9')).toBe('Bet 1875 and 1879');
+      expect(stdDate('1875 or 9')).toBe('Bet 1875 and 1879');
+    });
+    test('a shortened year after an "or" is the nearest year ending in its digits', () => {
+      expect(stdDate('1899 or 0')).toBe('Bet 1899 and 1900');
+      expect(stdDate('1799 or 0')).toBe('Bet 1799 and 1800');
+      expect(stdDate('1899 or 00')).toBe('Bet 1899 and 1900');
+      expect(stdDate('1999 or 00')).toBe('Bet 1999 and 2000');
+      expect(stdDate('1840 or 5')).toBe('Bet 1840 and 1845');
+    });
+    test('an "or" in one year: every date spelled out', () => {
+      expect(stdDate('25 or 29 Jan. 1856')).toBe('25 Jan 1856 or 29 Jan 1856');
+      expect(stdDate('4 or 5 June 1649')).toBe('4 Jun 1649 or 5 Jun 1649');
+      expect(stdDate('Aug 11 or 14 1825')).toBe('11 Aug 1825 or 14 Aug 1825');
+      expect(stdDate('July or Aug. 1780')).toBe('Jul 1780 or Aug 1780');
+      expect(stdDate('30 Nov or 31 Dec 1745')).toBe('30 Nov 1745 or 31 Dec 1745');
+      expect(stdDate('5 Feb 1753 or 27 Feb')).toBe('5 Feb 1753 or 27 Feb 1753');
+      expect(stdDate('5 Feb 1753 or 27 1753')).toBe('5 Feb 1753 or 27 Feb 1753');
+    });
+    test('two dates in one cell with no "or"', () => {
+      expect(stdDate('abt 1820 1824')).toBe('Bet 1820 and 1824');
+      expect(stdDate('28 JUL 1794/1797')).toBe('Bet 1794 and 1797');
+      expect(stdDate('23/24 Oct 1870')).toBe('23 Oct 1870 or 24 Oct 1870');
+      expect(stdDate('13 15 Apr. 1787')).toBe('13 Apr 1787 or 15 Apr 1787');
+      expect(stdDate('Jan 5/6 1785')).toBe('5 Jan 1785 or 6 Jan 1785');
+      expect(stdDate('16 Sept./Dec. 1785')).toBe('16 Sep 1785 or 16 Dec 1785');
+      expect(stdDate('30 Oct. 1806 16 Nov 1806')).toBe('30 Oct 1806 or 16 Nov 1806');
+      expect(stdDate('30 Oct. 1806 16 Nov 1807')).toBe('Bet 1806 and 1807');
+    });
+    test('two dates printed with "bet" or "and" are a range', () => {
+      expect(stdDate('bet. Sept. 22, Oct. 15, 1712')).toBe('Bet 22 Sep 1712 and 15 Oct 1712');
+      expect(stdDate('29 Mar and 11 Aug 1865')).toBe('Bet 29 Mar 1865 and 11 Aug 1865');
+    });
+    test('a day printed once beside two months is the day of both', () => {
+      expect(stdDate('Feb./May 17, 1672')).toBe('17 Feb 1672 or 17 May 1672');
+      expect(stdDate('Dec 18. Apr 1763')).toBe('18 Dec 1763 or Apr 1763');
+      expect(stdDate('February or March 30th, 1667')).toBe('Feb 1667 or 30 Mar 1667');
+    });
+    test('a printed "or" beside the two readings of an all-number date', () => {
+      expect(stdDate('1-9-1816 or 1819')).toBe('Bet 1816 and 1819');
+      expect(stdDate('3/9/1978 or 3/10/1978')).toBe('9 Mar 1978 or 3 Sep 1978 or 10 Mar 1978 or 3 Oct 1978');
+    });
+    test('an "or" date reads as itself', () => {
+      expect(stdDate('25 Jan 1856 or 29 Jan 1856')).toBe('25 Jan 1856 or 29 Jan 1856');
+      expect(stdDate('Bet 1678 and 1679')).toBe('Bet 1678 and 1679');
+    });
+    test('a cell that is not two dates is read as one, as before', () => {
+      expect(stdDate('1722 1723')).toBe('1723');
+      expect(stdDate('1767/1768')).toBe('1768');
+      expect(stdDate('in or before 1663')).toBe('Bef 1663');
+      expect(stdDate('on or about 11 July 1868')).toBe('Abt 11 Jul 1868');
+      expect(stdDate('March March 11, 1818')).toBe('11 Mar 1818');
+      expect(stdDate('October or thereabouts 1663')).toBe('Oct 1663');
+      expect(stdDate('3 1 MAR 1969')).toBe('Mar 1969');
+      expect(stdDate('(38 in 1880) 1842')).toBe('1842');
+      expect(stdDate('Oct. 20, 1877, 6 PM')).toBe('20 Oct 1877');
+      expect(stdDate('1849 or 18500')).toBe('1849');
+      expect(stdDate("18 Aug 1912 or 26 Aug '09")).not.toContain(' or ');
+      expect(stdDate('before 1885 or 1886')).not.toContain('Bet');
+    });
+    test('the helpers read every date of an "or" date', () => {
+      const std = stdDate('3/9/1978 or 3/10/1978');
+      expect(earliestYear(std)).toBe(1978);
+      expect(latestYear(std)).toBe(1978);
+      expect(earliestYear(stdDate('1678 or 9'))).toBe(1678);
+      expect(latestYear(stdDate('1678 or 9'))).toBe(1679);
+      expect(minDaysDiff(std, '3 Oct 1978')).toBe(0);
+    });
+  });
+
   describe('format conversions', () => {
     test('yyyy-mm-dd', () => { expect(stdDate('1900/09/14')).toBe('14 Sep 1900'); });
     test('mm-dd-yyyy unambiguous', () => {
