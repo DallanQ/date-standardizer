@@ -911,7 +911,7 @@ describe('stdDate', () => {
       expect(stdDate('??? 1760')).toBe('1760');
       expect(stdDate('July ? 1931')).toBe('Jul 1931');
       expect(stdDate('? Aug. 1913')).toBe('Aug 1913');
-      expect(stdDate('Aug.12?1823')).toBe('12 Aug 1823');
+      expect(stdDate('Aug.12?1823')).toBe('Abt 12 Aug 1823');   // a `?` on a number doubts the date
       expect(stdDate('189?0-')).not.toContain('1890');
     });
     test('a dash with nothing after it is dropped', () => {
@@ -1306,5 +1306,81 @@ describe('edge cases — error handling', () => {
 
   test('helpers handle parenthetical text after range', () => {
     expect(latestYear('Bet 28 Sep 1974 and 5 Oct 1978 (SOME TEXT)')).toBe(1978);
+  });
+});
+
+// What the new rules must not do (the review of book-to-tree's port, 2026-11-19). Each case failed before
+// the fix; each block keeps a case that must not move.
+describe('stdDate — never a date the book did not print', () => {
+  test('a Quaker month never overrides a month the book names', () => {
+    expect(stdDate('Feb. 8m 1895')).toBe('8 Feb 1895');
+    expect(stdDate('April 7mo 1674')).toBe('7 Apr 1674');
+    expect(stdDate('9 Jan (9th Mo.) 1699')).toBe('9 Jan 1699');
+    expect(stdDate('15 2mo. Sep 1753')).toBe('Sep 1753');
+    expect(stdDate('20th day of ye 4th month Called June 1716')).toBe('20 Jun 1716');   // a month that agrees
+  });
+
+  test('an age in months is no Quaker month', () => {
+    for (const cell of ['1860 age 2 mo', '(ae 3 mo) 1860', 'aged 11 mo 1850']) {
+      expect(stdDate(cell)).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
+    }
+  });
+
+  test('a ? on a number doubts the date, and a number beside an unknown part is no month', () => {
+    expect(stdDate('May 8?, 1910')).toBe('Abt 8 May 1910');
+    expect(stdDate('Oct. 1?, 1863')).toBe('Abt 1 Oct 1863');
+    expect(stdDate('1908?Feb 12')).toBe('Abt 12 Feb 1908');
+    expect(stdDate('1780?-')).toBe('Abt 1780');
+    expect(stdDate('8 ??? 1984')).toBe('1984');
+    expect(stdDate('? 2, 1782')).toBe('1782');
+    expect(stdDate('8 ? 1946')).toBe('1946');
+    expect(stdDate('?/2/1782')).toBe('1782');
+    expect(stdDate('July ? 1931')).toBe('Jul 1931');
+    expect(stdDate('1890?')).toBe('Abt 1890');
+  });
+
+  test('a two-letter code right after a word is no month', () => {
+    expect(stdDate('antes de 1690')).toBe('1690');
+    expect(stdDate("l'automne de 1687")).toBe('1687');
+    expect(stdDate('año de 1850')).toBe('1850');
+    expect(stdDate('in my 1750')).toBe('1750');
+    expect(stdDate('Ap. 1820')).toBe('Apr 1820');            // a code first, after a number or a qualifier
+    expect(stdDate('Je 1891')).toBe('Jun 1891');
+    expect(stdDate('abt Ap 1820')).toBe('Abt Apr 1820');
+    expect(stdDate('1848 DE 27')).toBe('27 Dec 1848');
+    expect(stdDate('Oc t.9,1850')).toBe('9 Oct 1850');
+  });
+
+  test('a to starts a range only with a date after it', () => {
+    expect(stdDate('1996 to present')).toBe('');
+    expect(stdDate('about 1725 to 35')).toBe('Bet 1725 and 1735');
+    expect(stdDate('1820 to 25')).toBe('Bet 1820 and 1825');
+    expect(stdDate('after 1840 and prior to 1847')).toBe('Bef 1847');
+    expect(stdDate('1898 to 1900')).toBe('Bet 1898 and 1900');
+    expect(stdDate('Jan 5 to Feb 6, 1850')).toBe('Bet 5 Jan 1850 and 6 Feb 1850');
+  });
+
+  test('no decade still to come is read', () => {
+    expect(stdDate('Abt 209')).toBe('');
+    expect(stdDate('abt 215')).toBe('');
+    expect(stdDate('214')).toBe('');
+    expect(stdDate('186')).toBe('Bet 1860 and 1869');
+    expect(stdDate('202-')).toBe('Bet 2020 and 2029');
+  });
+
+  test('an ordinal that counts a weekday, or beside another, is no day', () => {
+    expect(stdDate('first Sunday in October 1788')).toBe('Oct 1788');
+    expect(stdDate('Third Monday in November, 1802 (Nov. 15)')).toBe('Nov 1802 (Nov. 15)');
+    expect(stdDate('twentieth fifth May 1850')).toBe('May 1850');
+    expect(stdDate('May twentieth fifth 1850')).toBe('May 1850');
+    expect(stdDate('twenty-seventh of November 1771')).toBe('27 Nov 1771');
+    expect(stdDate('fifth of May 1850')).toBe('5 May 1850');
+  });
+
+  test('a range never gives an end the book did not print', () => {
+    expect(stdDate('Dec. 28–9, 1820')).toBe('Bet 28 Dec 1820 and 9 1820');
+    expect(stdDate('ca. Nov. 26-7, 1933')).toBe('Bet 26 Nov 1933 and 7 1933');
+    expect(stdDate('Oct 16-23, 1910')).toBe('Bet 16 Oct 1910 and 23 Oct 1910');
+    expect(stdDate('Nov 9- 9-1722')).toBe('Bet 9 Nov 1722 and 9 Nov 1722');
   });
 });
