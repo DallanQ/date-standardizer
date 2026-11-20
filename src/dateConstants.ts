@@ -21,6 +21,19 @@ export const MONTHS: Map<string, string> = new Map([
   ['jun', 'Jun'], ['jul', 'Jul'], ['aug', 'Aug'], ['sep', 'Sep'],
   ['oct', 'Oct'], ['nov', 'Nov'], ['dec', 'Dec'],
   ['sept', 'Sep'],
+  // The clerks' old contractions and the books' misspellings (`5 Apl 1780`, `Jany`, `Decr`,
+  // `Feburary`). Each is a word nothing else uses.
+  ['jany', 'Jan'], ['janry', 'Jan'], ['janua', 'Jan'], ['janauary', 'Jan'],
+  ['feby', 'Feb'], ['febry', 'Feb'], ['febr', 'Feb'], ['feburary', 'Feb'], ['febury', 'Feb'],
+  ['febuary', 'Feb'], ['febrauary', 'Feb'],
+  ['mch', 'Mar'],
+  ['apl', 'Apr'], ['aprl', 'Apr'], ['apri', 'Apr'], ['aprill', 'Apr'],
+  ['jly', 'Jul'],
+  ['augt', 'Aug'], ['augst', 'Aug'],
+  ['spt', 'Sep'], ['sepr', 'Sep'], ['septr', 'Sep'], ['setember', 'Sep'],
+  ['octo', 'Oct'], ['octob', 'Oct'], ['octobr', 'Oct'], ['octr', 'Oct'],
+  ['novr', 'Nov'],
+  ['decr', 'Dec'], ['decem', 'Dec'],
 
   // Dutch
   ['januari', 'Jan'], ['februari', 'Feb'], ['maart', 'Mar'],
@@ -76,6 +89,18 @@ export const MONTHS: Map<string, string> = new Map([
   ['sentyabr', 'Sep'], ['oktyabr', 'Oct'], ['noyabr', 'Nov'], ['dekabr', 'Dec'],
 ]);
 
+/**
+ * The two-letter codes some registers print for a month (`1848 DE 27`, `Mr 15, 1867`, `8 Ap. 1873`).
+ * Not in MONTHS, because they are read only where the text names no other month: beside a month
+ * name, `de` is the Spanish "of" (`29 de octubre de 1877`). Left out: `no`, which the books print as
+ * the word (`no date`, `No issue`), `ma`, which is March or May, and `ju`, which is June or July.
+ */
+export const TWO_LETTER_MONTHS: Map<string, string> = new Map([
+  ['ja', 'Jan'], ['fe', 'Feb'], ['mr', 'Mar'], ['ap', 'Apr'], ['my', 'May'], ['je', 'Jun'],
+  ['jy', 'Jul'], ['jl', 'Jul'], ['ag', 'Aug'], ['au', 'Aug'], ['se', 'Sep'], ['sp', 'Sep'],
+  ['oc', 'Oct'], ['de', 'Dec'],
+]);
+
 /** Maps 3-letter abbreviations to month numbers (1-12) */
 export const MONTH_NUM: Map<string, number> = new Map([
   ['Jan', 1], ['Feb', 2], ['Mar', 3], ['Apr', 4], ['May', 5], ['Jun', 6],
@@ -98,6 +123,9 @@ export const MODIFIERS: Map<string, string> = new Map([
   ['about', 'Abt'], ['approx', 'Abt'], ['approximately', 'Abt'],
   ['circa', 'Abt'], ['ca', 'Abt'], ['c', 'Abt'], ['cir', 'Abt'],
   ['abt', 'Abt'],
+  // The books' own words for about (`around 1844`, `ab. 1865`), and `prob.`, which they print where they
+  // mean about (`prob. 1791`). Not `post`: `post. 22 Nov 1915` is a birth printed as posthumous.
+  ['around', 'Abt'], ['ab', 'Abt'], ['prob', 'Abt'], ['probably', 'Abt'],
   // Non-English about
   ['vers', 'Abt'], ['omstreeks', 'Abt'], ['omstr', 'Abt'],
   ['omkring', 'Abt'], ['omk', 'Abt'],
@@ -107,11 +135,12 @@ export const MODIFIERS: Map<string, string> = new Map([
 
   // Est
   ['est', 'Est'], ['estimated', 'Est'], ['estd', 'Est'],
-  ['say', 'Est'], ['probably', 'Est'], ['maybe', 'Est'], ['prob', 'Est'],
-  ['int', 'Est'], ['interpreted', 'Est'], ['ansl', 'Est'], ['anslat', 'Est'],
+  ['say', 'Est'], ['maybe', 'Est'],
+  // Not `int`: in the books it is a marriage's intentions (`Int. 1751`), so the word is dropped.
+  ['interpreted', 'Est'], ['ansl', 'Est'], ['anslat', 'Est'],
 
   // Bef
-  ['bef', 'Bef'], ['before', 'Bef'], ['bfr', 'Bef'], ['by', 'Bef'],
+  ['bef', 'Bef'], ['before', 'Bef'], ['bfr', 'Bef'], ['by', 'Bef'], ['ante', 'Bef'],
   ['voor', 'Bef'], ['avant', 'Bef'],
   ['<', 'Bef'],
 
